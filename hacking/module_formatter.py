@@ -117,7 +117,7 @@ def write_data(text, options, outputname, module):
 def list_modules(module_dir):
     ''' returns a hash of categories, each category being a hash of module names to file paths '''
 
-    categories = dict(all=dict())
+    categories = {}
     files = glob.glob("%s/*" % module_dir)
     for d in files:
         if os.path.isdir(d):
@@ -129,7 +129,6 @@ def list_modules(module_dir):
                 if not category in categories:
                     categories[category] = {}
                 categories[category][module] = f
-                categories['all'][module] = f
     return categories
 
 #####################################################################################
@@ -233,6 +232,7 @@ def process_module(module, options, env, template, outputname, module_map):
 
     text = template.render(doc)
     write_data(text, options, outputname, module)
+    return text
 
 #####################################################################################
 
@@ -276,6 +276,43 @@ def process_category(category, categories, options, env, template, outputname):
 
 #####################################################################################
 
+def process_all(categories, options, env, template, outputname):
+
+    all_file_path = os.path.join(options.output_dir, "list_of_all_modules.rst")
+    all_file = open(all_file_path, "w")
+    print "*** recording all categories in %s ***" % all_file_path
+
+    all_file.write("""\
+All Modules
+```````````
+
+.. contents::
+   :depth: 2
+
+""")
+
+    for category in sorted(categories.keys()):
+        modules = categories[category]
+        all_file.write("""
+%s
+%s
+
+""" % (category.title(), "~" * len(category)))
+
+        for module in sorted(modules.keys()):
+            result = process_module(module, options, env, template, outputname, modules)
+            if result != "SKIPPED":
+                all_file.write("""
+
+%s
+
+""" % result.encode('ascii', 'ignore'))
+
+
+    all_file.close()
+
+#####################################################################################
+
 def validate_options(options):
     ''' validate option parser options '''
 
@@ -313,11 +350,14 @@ def main():
     category_list_file.write(".. toctree::\n")
     category_list_file.write("   :maxdepth: 1\n\n")
 
+    category_list_file.write("   list_of_all_modules\n")
     for category in category_names:
         category_list_file.write("   list_of_%s_modules\n" % category)
         process_category(category, categories, options, env, template, outputname)
 
     category_list_file.close()
+
+    process_all(categories, options, env, template, outputname)
 
 if __name__ == '__main__':
     main()
