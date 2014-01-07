@@ -138,6 +138,8 @@ DEFAULT_FILTER_PLUGIN_PATH     = get_config(p, DEFAULTS, 'filter_plugins',     '
 DEFAULT_LOG_PATH               = shell_expand_path(get_config(p, DEFAULTS, 'log_path',           'ANSIBLE_LOG_PATH', ''))
 
 CACHE_PLUGIN                   = get_config(p, DEFAULTS, 'cache_plugin', 'ANSIBLE_CACHE_PLUGIN', 'memory')
+CACHE_PLUGIN_CONNECTION        = get_config(p, DEFAULTS, 'cache_plugin_connection', 'ANSIBLE_CACHE_PLUGIN_CONNECTION', None)
+CACHE_PLUGIN_TIMEOUT           = get_config(p, DEFAULTS, 'cache_plugin_timeout', 'ANSIBLE_CACHE_PLUGIN_TIMEOUT', 0)
 
 ANSIBLE_NOCOLOR                = get_config(p, DEFAULTS, 'nocolor', 'ANSIBLE_NOCOLOR', None, boolean=True)
 ANSIBLE_NOCOWS                 = get_config(p, DEFAULTS, 'nocows', 'ANSIBLE_NOCOWS', None, boolean=True)
