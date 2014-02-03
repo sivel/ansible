@@ -1,6 +1,29 @@
 import os
 
 
+def rax_slugify(value):
+    return 'rax_%s' % (re.sub('[^\w-]', '_', value).lower().lstrip('_'))
+
+
+def rax_object_to_dict(obj, region=None, is_server=False, namespace=False):
+    instance = {}
+    for key in dir(obj):
+        value = getattr(obj, key)
+        if (isinstance(value, NON_CALLABLES) and not key.startswith('_')):
+            if namespace:
+                key = rax_slugify(key)
+            instance[key] = value
+
+    if is_server:
+        for attr in ['id', 'accessIPv4', 'name', 'status']:
+            instance[attr] = instance.get(rax_slugify(attr))
+
+    if region:
+        instance['region'] = region
+
+    return instance
+
+
 def rax_argument_spec():
     return dict(
         api_key=dict(type='str', aliases=['password'], no_log=True),
