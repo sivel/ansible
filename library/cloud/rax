@@ -430,6 +430,7 @@ def cloudservers(module, state, name, flavor, image, meta, key_name, files,
     if image:
         try:
             UUID(image)
+            image = cs.images.get(image)
         except ValueError:
             try:
                 image = cs.images.find(human_id=image)
@@ -441,6 +442,13 @@ def cloudservers(module, state, name, flavor, image, meta, key_name, files,
                         cs.exceptions.NoUniqueMatch):
                     module.fail_json(msg='No matching image found (%s)' %
                                          image)
+
+        auto_disk_config = image.metadata.get('auto_disk_config',
+                                              'True').upper()
+        auto_disk_config_enabled = auto_disk_config != 'DISABLED'
+
+        if disk_config == 'AUTO' and not auto_disk_config_enabled:
+            disk_config = None
 
         image = pyrax.utils.get_id(image)
 
