@@ -357,10 +357,63 @@ class Connection(object):
             cmd += ["sftp"] + self.common_args + [host]
             indata = "put %s %s\n" % (pipes.quote(in_path), pipes.quote(out_path))
 
-        p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if indata:
+            # do not use pseudo-pty
+            p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdin = p.stdin
+        else:
+            # try to use upseudo-pty
+            try:
+                # Make sure stdin is a proper (pseudo) pty to avoid: tcgetattr errors
+                master, slave = pty.openpty()
+                p = subprocess.Popen(cmd, stdin=slave,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdin = os.fdopen(master, 'w', 0)
+                os.close(slave)
+            except:
+                p = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdin = p.stdin
+
         self._send_password()
-        stdout, stderr = p.communicate(indata)
+
+        fcntl.fcntl(p.stdout, fcntl.F_SETFL, fcntl.fcntl(p.stdout, fcntl.F_GETFL) & ~os.O_NONBLOCK)
+        fcntl.fcntl(p.stderr, fcntl.F_SETFL, fcntl.fcntl(p.stderr, fcntl.F_GETFL) & ~os.O_NONBLOCK)
+        # We can't use p.communicate here because the ControlMaster may have stdout open as well
+        stdout = ''
+        stderr = ''
+        rpipes = [p.stdout, p.stderr]
+        if indata:
+            try:
+                stdin.write(indata)
+                stdin.close()
+            except:
+                raise errors.AnsibleError('SSH Error: data could not be sent to the remote host. Make sure this host can be reached over ssh')
+        while True:
+            rfd, wfd, efd = select.select(rpipes, [], rpipes, 1)
+
+            if p.stdout in rfd:
+                dat = os.read(p.stdout.fileno(), 9000)
+                stdout += dat
+                if dat == '':
+                    rpipes.remove(p.stdout)
+            if p.stderr in rfd:
+                dat = os.read(p.stderr.fileno(), 9000)
+                stderr += dat
+                if dat == '':
+                    rpipes.remove(p.stderr)
+            # only break out if we've emptied the pipes, or there is nothing to
+            # read from and the process has finished.
+            if (not rpipes or not rfd) and p.poll() is not None:
+                break
+            # Calling wait while there are still pipes to read can cause a lock
+            elif not rpipes and p.poll() == None:
+                p.wait()
+                # the process has finished and the pipes are empty,
+                # if we loop and do the select it waits all the timeout
+                break
+        stdin.close() # close stdin after we read from stdout (see also issue #848)
 
         if p.returncode != 0:
             raise errors.AnsibleError("failed to transfer file to %s:\n%s\n%s" % (out_path, stdout, stderr))
