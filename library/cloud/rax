@@ -395,6 +395,10 @@ def cloudservers(module, state, name, flavor, image, meta, key_name, files,
     elif 'group' in meta and group is None:
         group = meta['group']
 
+    # Coerce list of additional groups into CSV string
+    if isinstance(meta.get('groups'), list):
+        meta['groups'] = ','.join(meta['groups'])
+
     # When using state=absent with group, the absent block won't match the
     # names properly. Use the exact_count functionality to decrease the count
     # to the desired level
