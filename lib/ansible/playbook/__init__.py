@@ -185,6 +185,8 @@ class PlayBook(object):
 
         self._ansible_version = utils.version_info(gitinfo=True)
 
+        self.skip_tasks = 0
+
     # *****************************************************
 
     def _get_playbook_vars(self, play_ds, existing_vars):
@@ -515,6 +517,10 @@ class PlayBook(object):
                 facts = result.get('ansible_facts', {})
                 _save_play_facts(host, facts)
 
+                skip = result.get('skip')
+                if skip:
+                    self.skip_tasks = skip
+
             # if requested, save the result into the registered variable name
             if task.register:
                 _register_play_vars(host, result)
@@ -723,6 +729,11 @@ class PlayBook(object):
                 if should_run:
                     if any(x in task.tags for x in self.skip_tags):
                         should_run = False
+
+                # Check to see if we are supposed to skip any tasks
+                if self.skip_tasks != 0:
+                    task.when = '%s == 0' % self.skip_tasks
+                    self.skip_tasks -= 1
 
                 if should_run:
 
