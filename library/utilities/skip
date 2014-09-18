@@ -21,10 +21,10 @@
 DOCUMENTATION = """
 ---
 module: skip
-short_description: Skip a specified number of tasks
+short_description: Skip a specified number of tasks or to a named task
 description:
-  - This module causes ansible to skip a specified number of tasks or all
-    following tasks
+  - This module causes ansible to skip a specified number of tasks, all
+    following tasks, or to a named task
 version_added: 1.8
 options:
   count:
@@ -32,12 +32,26 @@ options:
       - The number of tasks to skip. Use C(all) to skip all remaining tasks.
     required: false
     default: 9999
-
+  name:
+    description:
+      - The name of a task to skip to
+    required: false
 author: Matt Martz
 """
 
 EXAMPLES = """
+# Skip a specified number of tasks
 - name: Skip remaining tasks related to software installation
   skip: count=5
   when: software_installed
+
+# Skip to a named task
+- name: Skip to 'ensure app is started'
+  skip: name='ensure app is started'
+  when: software_installed
+
+## additional intermediate tasks here
+
+- name: ensure app is started
+  service: name=app state=started
 """
