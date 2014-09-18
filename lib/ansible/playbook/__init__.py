@@ -186,6 +186,7 @@ class PlayBook(object):
         self._ansible_version = utils.version_info(gitinfo=True)
 
         self.skip_tasks = 0
+        self.skip_to = None
 
     # *****************************************************
 
@@ -517,9 +518,12 @@ class PlayBook(object):
                 facts = result.get('ansible_facts', {})
                 _save_play_facts(host, facts)
 
-                skip = result.get('skip')
-                if skip:
-                    self.skip_tasks = skip
+                skip_tasks = result.get('skip_tasks')
+                skip_to = result.get('skip_to')
+                if skip_to is not None:
+                    self.skip_to = skip_to
+                elif isinstance(skip_tasks, int):
+                    self.skip_tasks = skip_tasks
 
             # if requested, save the result into the registered variable name
             if task.register:
@@ -734,6 +738,11 @@ class PlayBook(object):
                 if self.skip_tasks != 0:
                     task.when = '%s == 0' % self.skip_tasks
                     self.skip_tasks -= 1
+                elif self.skip_to is not None:
+                    if self.skip_to != task.name:
+                        task.when = '"%s" == "%s"' % (self.skip_to, task.name)
+                    else:
+                        self.skip_to = None
 
                 if should_run:
 

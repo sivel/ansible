@@ -36,13 +36,22 @@ class ActionModule(object):
             args.update(complex_args)
         args.update(utils.parse_kv(module_args))
 
-        count = args.get('count', 9999)
-        if not count.isdigit() and count.lower() == 'all':
-            count = 9999
-        elif not count.isdigit():
-            raise AnsibleError('count must be an integer or "all"')
+        if 'count' in args and 'name' in args:
+            raise AnsibleError('parameters are mutually exclusive: count,name')
 
-        vv("created 'skip' ActionModule: count=%s" % count)
+        if 'name' in args:
+            name = args['name']
+            count = None
+        else:
+            count = args.get('count', 9999)
+            if not count.isdigit() and count.lower() == 'all':
+                count = 9999
+            elif not count.isdigit():
+                raise AnsibleError('count must be an integer or "all"')
+            name = None
+            count = int(count)
 
-        result = dict(skip=int(count))
+        vv("created 'skip' ActionModule: count=%s name=%s" % (count, name))
+
+        result = dict(skip_to=name, skip_tasks=count)
         return ReturnData(conn=conn, result=result)
