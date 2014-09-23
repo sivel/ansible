@@ -28,6 +28,12 @@ options:
     description:
       - Description to give the volume being created
     default: null
+  image:
+    description:
+      - image to use for bootable volumes. Can be an C(id), C(human_id) or
+        C(name)
+    default: null
+    version_added: 1.8
   meta:
     description:
       - A hash of metadata to associate with the volume
@@ -107,7 +113,8 @@ except ImportError:
 
 
 def cloud_block_storage(module, state, name, description, meta, size,
-                        snapshot_id, volume_type, wait, wait_timeout):
+                        snapshot_id, volume_type, wait, wait_timeout,
+                        image):
     for arg in (state, name, size, volume_type):
         if not arg:
             module.fail_json(msg='%s is required for rax_cbs' % arg)
@@ -126,6 +133,9 @@ def cloud_block_storage(module, state, name, description, meta, size,
                              'typically indicates an invalid region or an '
                              'incorrectly capitalized region name.')
 
+    if image:
+        image = rax_find_image(module, pyrax, image)
+
     volume = rax_find_volume(module, pyrax, name)
 
     if state == 'present':
@@ -134,7 +144,7 @@ def cloud_block_storage(module, state, name, description, meta, size,
                 volume = cbs.create(name, size=size, volume_type=volume_type,
                                     description=description,
                                     metadata=meta,
-                                    snapshot_id=snapshot_id)
+                                    snapshot_id=snapshot_id, image=image)
                 changed = True
             except Exception, e:
                 module.fail_json(msg='%s' % e.message)
@@ -145,10 +155,7 @@ def cloud_block_storage(module, state, name, description, meta, size,
                                                attempts=attempts)
 
         volume.get()
-        for key, value in vars(volume).iteritems():
-            if (isinstance(value, NON_CALLABLES) and
-                    not key.startswith('_')):
-                instance[key] = value
+        instance = rax_to_dict(volume)
 
         result = dict(changed=changed, volume=instance)
 
@@ -178,6 +185,7 @@ def main():
     argument_spec.update(
         dict(
             description=dict(),
+            image=dict(),
             meta=dict(type='dict', default={}),
             name=dict(required=True),
             size=dict(type='int', default=100),
@@ -198,6 +206,7 @@ def main():
         module.fail_json(msg='pyrax is required for this module')
 
     description = module.params.get('description')
+    image = module.params.get('image')
     meta = module.params.get('meta')
     name = module.params.get('name')
     size = module.params.get('size')
@@ -210,7 +219,8 @@ def main():
     setup_rax_module(module, pyrax)
 
     cloud_block_storage(module, state, name, description, meta, size,
-                        snapshot_id, volume_type, wait, wait_timeout)
+                        snapshot_id, volume_type, wait, wait_timeout,
+                        image)
 
 # import module snippets
 from ansible.module_utils.basic import *

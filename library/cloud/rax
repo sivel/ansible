@@ -35,6 +35,18 @@ options:
       - "yes"
       - "no"
     version_added: 1.5
+  boot_volume:
+    description:
+      - Cloud Block Storage volume to boot from
+    version_added: 1.8
+  boot_volume_terminate:
+    description:
+      - Whether the I(boot_volume) be terminated when the server is terminated
+    default: no
+    choices:
+      - "yes"
+      - "no"
+    version_added: 1.8
   config_drive:
     description:
       - Attach read-only configuration drive to server as label config-2
@@ -204,7 +216,7 @@ except ImportError:
 def create(module, names=[], flavor=None, image=None, meta={}, key_name=None,
            files={}, wait=True, wait_timeout=300, disk_config=None,
            group=None, nics=[], extra_create_args={}, user_data=None,
-           config_drive=False, existing=[]):
+           config_drive=False, existing=[], block_device_mapping={}):
     cs = pyrax.cloudservers
     changed = False
 
@@ -229,6 +241,7 @@ def create(module, names=[], flavor=None, image=None, meta={}, key_name=None,
         except Exception, e:
             module.fail_json(msg='Failed to load %s' % lpath)
     try:
+        bdm = block_device_mapping
         servers = []
         for name in names:
             servers.append(cs.servers.create(name=name, image=image,
@@ -238,6 +251,7 @@ def create(module, names=[], flavor=None, image=None, meta={}, key_name=None,
                                              disk_config=disk_config,
                                              config_drive=config_drive,
                                              userdata=user_data,
+                                             block_device_mapping=bdm,
                                              **extra_create_args))
     except Exception, e:
         module.fail_json(msg='%s' % e.message)
@@ -385,7 +399,8 @@ def cloudservers(module, state=None, name=None, flavor=None, image=None,
                  disk_config=None, count=1, group=None, instance_ids=[],
                  exact_count=False, networks=[], count_offset=0,
                  auto_increment=False, extra_create_args={}, user_data=None,
-                 config_drive=False):
+                 config_drive=False, boot_volume=None,
+                 boot_volume_terminate=False):
     cs = pyrax.cloudservers
     cnw = pyrax.cloud_networks
     if not cnw:
@@ -426,6 +441,11 @@ def cloudservers(module, state=None, name=None, flavor=None, image=None,
     if networks:
         for network in networks:
             nics.extend(rax_find_network(module, pyrax, network))
+
+    block_device_mapping = {}
+    if boot_volume:
+        block_device_mapping['vda'] = '%s:::%s' % (boot_volume,
+                                                   int(boot_volume_terminate))
 
     # act on the state
     if state == 'present':
@@ -573,7 +593,7 @@ def cloudservers(module, state=None, name=None, flavor=None, image=None,
                wait_timeout=wait_timeout, disk_config=disk_config, group=group,
                nics=nics, extra_create_args=extra_create_args,
                user_data=user_data, config_drive=config_drive,
-               existing=servers)
+               existing=servers, block_device_mapping=block_device_mapping)
 
     elif state == 'absent':
         if instance_ids is None:
@@ -615,6 +635,8 @@ def main():
     argument_spec.update(
         dict(
             auto_increment=dict(default=True, type='bool'),
+            boot_volume=dict(),
+            boot_volume_terminate=dict(default=False, type='bool'),
             config_drive=dict(default=False, type='bool'),
             count=dict(default=1, type='int'),
             count_offset=dict(default=1, type='int'),
@@ -655,6 +677,8 @@ def main():
                              'playbook pertaining to the "rax" module')
 
     auto_increment = module.params.get('auto_increment')
+    boot_volume = module.params.get('boot_volume')
+    boot_volume_terminate = module.params.get('boot_volume_terminate')
     config_drive = module.params.get('config_drive')
     count = module.params.get('count')
     count_offset = module.params.get('count_offset')
@@ -700,7 +724,8 @@ def main():
                  exact_count=exact_count, networks=networks,
                  count_offset=count_offset, auto_increment=auto_increment,
                  extra_create_args=extra_create_args, user_data=user_data,
-                 config_drive=config_drive)
+                 config_drive=config_drive, boot_volume=boot_volume,
+                 boot_volume_terminate=boot_volume_terminate)
 
 
 # import module snippets
