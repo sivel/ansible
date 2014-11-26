@@ -444,10 +444,13 @@ class Play(object):
             defaults_file = self._resolve_main(defaults_basepath)
 
             library   = utils.path_dwim(self.basedir, os.path.join(role_path, 'library'))
+            action_plugins = utils.path_dwim(self.basedir, os.path.join(role_path, 'action_plugins'))
+            filter_plugins = utils.path_dwim(self.basedir, os.path.join(role_path, 'filter_plugins'))
+            lookup_plugins = utils.path_dwim(self.basedir, os.path.join(role_path, 'lookup_plugins'))
 
             missing = lambda f: not os.path.isfile(f)
-            if missing(task) and missing(handler) and missing(vars_file) and missing(defaults_file) and missing(meta_file) and not os.path.isdir(library):
-                raise errors.AnsibleError("found role at %s, but cannot find %s or %s or %s or %s or %s or %s" % (role_path, task, handler, vars_file, defaults_file, meta_file, library))
+            if missing(task) and missing(handler) and missing(vars_file) and missing(defaults_file) and missing(meta_file) and not os.path.isdir(library) and not os.path.isdir(action_plugins) and not os.path.isdir(filter_plugins) and not os.path.isdir(lookup_plugins):
+                raise errors.AnsibleError("found role at %s, but cannot find %s or %s or %s or %s or %s or %s or %s or %s or %s" % (role_path, task, handler, vars_file, defaults_file, meta_file, library, action_plugins, filter_plugins, lookup_plugins))
 
             if isinstance(role, dict):
                 role_name = role['role']
@@ -473,6 +476,12 @@ class Play(object):
                 defaults_files.append(defaults_file)
             if os.path.isdir(library):
                 utils.plugins.module_finder.add_directory(library)
+            if os.path.isdir(action_plugins):
+                utils.plugins.action_loader.add_directory(action_plugins)
+            if os.path.isdir(filter_plugins):
+                utils.plugins.filter_loader.add_directory(filter_plugins)
+            if os.path.isdir(lookup_plugins):
+                utils.plugins.lookup_loader.add_directory(lookup_plugins)
 
         tasks      = ds.get('tasks', None)
         post_tasks = ds.get('post_tasks', None)
