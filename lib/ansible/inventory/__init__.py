@@ -326,6 +326,9 @@ class Inventory(object):
             ungrouped = self.get_group('ungrouped')
             self.get_group('all').add_child_group(ungrouped)
         ungrouped.add_host(new_host)
+        host_vars = self.get_host_variables(pattern, update_cached=False, vault_password=self._vault_password)
+        for k, v in host_vars.items():
+            new_host.set_variable(k, v)
         return new_host
 
     def _hosts_in_unenumerated_pattern(self, pattern):
