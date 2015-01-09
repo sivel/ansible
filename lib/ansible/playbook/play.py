@@ -88,6 +88,7 @@ class Play(object):
             load_vars['inventory_dir'] = self.playbook.inventory.basedir()
         if self.playbook.inventory.src() is not None:
             load_vars['inventory_file'] = self.playbook.inventory.src()
+        load_vars['playbook_uuid'] = uuid.uuid4()
 
         # We first load the vars files from the datastructure
         # so we have the default variables to pass into the roles
