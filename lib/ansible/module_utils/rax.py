@@ -176,7 +176,15 @@ def rax_find_loadbalancer(module, rax_module, loadbalancer):
         found = clb.get(loadbalancer)
     except:
         found = []
-        for lb in clb.list():
+
+        balancer_list = clb.list()
+        while balancer_list:
+            retrieved = clb.list(marker=balancer_list.pop().id)
+            balancer_list.extend(retrieved)
+            if len(retrieved) < 2:
+                break
+
+        for lb in balancer_list:
             if loadbalancer == lb.name:
                 found.append(lb)
 
