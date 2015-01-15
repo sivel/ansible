@@ -46,6 +46,19 @@ PUBLIC_NET_ID = "00000000-0000-0000-0000-000000000000"
 SERVICE_NET_ID = "11111111-1111-1111-1111-111111111111"
 
 
+def rax_list_iterator(svc, *args, **kwargs):
+    method = kwargs.pop('method', 'list')
+    items = getattr(svc, method)(*args, **kwargs)
+    while items:
+        retrieved = getattr(svc, method)(*args, marker=items[-1].id, **kwargs)
+        if items and retrieved and items[-1].id == retrieved[0].id:
+            del items[-1]
+        items.extend(retrieved)
+        if len(retrieved) < 2:
+            break
+    return items
+
+
 def rax_slugify(value):
     """Prepend a key with rax_ and normalize the key name"""
     return 'rax_%s' % (re.sub('[^\w-]', '_', value).lower().lstrip('_'))
@@ -156,7 +169,7 @@ def rax_find_server(module, rax_module, server):
         UUID(server)
         server = cs.servers.get(server)
     except ValueError:
-        servers = cs.servers.list(search_opts=dict(name='^%s$' % server))
+        servers = rax_list_iterator(cs.servers, search_opts=dict(name='^%s$' % server))
         if not servers:
             module.fail_json(msg='No Server was matched by name, '
                                  'try using the Server ID instead')
@@ -177,14 +190,7 @@ def rax_find_loadbalancer(module, rax_module, loadbalancer):
     except:
         found = []
 
-        balancer_list = clb.list()
-        while balancer_list:
-            retrieved = clb.list(marker=balancer_list.pop().id)
-            balancer_list.extend(retrieved)
-            if len(retrieved) < 2:
-                break
-
-        for lb in balancer_list:
+        for lb in rax_list_iterator(clb):
             if loadbalancer == lb.name:
                 found.append(lb)
 
