@@ -36,7 +36,11 @@ from ansible.playbook.helpers import load_list_of_blocks
 from ansible.playbook.role.include import RoleInclude
 from ansible.playbook.role.metadata import RoleMetadata
 from ansible.playbook.taggable import Taggable
-from ansible.plugins import module_loader
+from ansible.plugins import (
+    module_loader, action_loader, filter_loader, lookup_loader,
+    callback_loader, connection_loader, vars_loader, cache_loader,
+    shell_loader, strategy_loader
+)
 from ansible.utils.vars import combine_vars
 
 
@@ -147,15 +151,29 @@ class Role(Base, Become, Conditional, Taggable):
         current_when = getattr(self, 'when')[:]
         current_when.extend(role_include.when)
         setattr(self, 'when', current_when)
-        
+
         current_tags = getattr(self, 'tags')[:]
         current_tags.extend(role_include.tags)
         setattr(self, 'tags', current_tags)
 
         # load the role's files, if they exist
-        library = os.path.join(self._role_path, 'library')
-        if os.path.isdir(library):
-            module_loader.add_directory(library)
+        plugin_map = {
+            'library': module_loader,
+            'action_plugins': action_loader,
+            'filter_plugins': filter_loader,
+            'lookup_plugins': lookup_loader,
+            'callback_plugins': callback_loader,
+            'vars_plugins': vars_loader,
+            'connection_plugins': connection_loader,
+            'cache_plugins': cache_loader,
+            'shell_plugins': shell_loader,
+            'strategy_plugins': strategy_loader,
+        }
+
+        for plugin, loader in plugin_map.items():
+            directory = os.path.join(self._role_path, plugin)
+            if os.path.isdir(directory):
+                loader.add_directory(directory)
 
         metadata = self._load_role_yaml('meta')
         if metadata:
@@ -353,7 +371,7 @@ class Role(Base, Become, Conditional, Taggable):
     def deserialize(self, data, include_deps=True):
         self._role_name    = data.get('_role_name', '')
         self._role_path    = data.get('_role_path', '')
-	self._role_vars    = data.get('_role_vars', dict())
+        self._role_vars    = data.get('_role_vars', dict())
         self._role_params  = data.get('_role_params', dict())
         self._default_vars = data.get('_default_vars', dict())
         self._had_task_run = data.get('_had_task_run', False)
@@ -389,4 +407,3 @@ class Role(Base, Become, Conditional, Taggable):
             parent.set_loader(loader)
         for dep in self.get_direct_dependencies():
             dep.set_loader(loader)
-
