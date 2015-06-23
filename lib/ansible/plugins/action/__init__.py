@@ -76,14 +76,8 @@ class ActionBase:
         # Search module path(s) for named module.
         module_suffixes = getattr(self._connection, 'default_suffixes', None)
         module_path = self._shared_loader_obj.module_loader.find_plugin(module_name, module_suffixes)
-        if module_path is None:
-            module_path2 = self._shared_loader_obj.module_loader.find_plugin('ping', module_suffixes)
-            if module_path2 is not None:
-                raise AnsibleError("The module %s was not found in configured module paths" % (module_name))
-            else:
-                raise AnsibleError("The module %s was not found in configured module paths. " \
-                                   "Additionally, core modules are missing. If this is a checkout, " \
-                                   "run 'git submodule update --init --recursive' to correct this problem." % (module_name))
+        if not module_path:
+            raise AnsibleError("The module %s was not found in configured module paths" % (module_name))
 
         # insert shared code and arguments into the module
         (module_data, module_style, module_shebang) = modify_module(module_path, module_args, task_vars=task_vars)

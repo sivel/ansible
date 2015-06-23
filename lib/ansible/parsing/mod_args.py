@@ -21,7 +21,7 @@ __metaclass__ = type
 
 from six import iteritems, string_types
 
-from ansible.errors import AnsibleParserError
+from ansible.errors import AnsibleParserError, AnsibleError
 from ansible.plugins import module_loader
 from ansible.parsing.splitter import parse_kv
 
@@ -270,7 +270,14 @@ class ModuleArgsParser:
 
         # walk the input dictionary to see we recognize a module name
         for (item, value) in iteritems(self._task_ds):
-            if item in module_loader or item == 'meta' or item == 'include':
+            try:
+                in_loader = item in module_loader
+                loader_error = None
+            except AnsibleError as e:
+                in_loader = False
+                loader_error = e
+
+            if in_loader or item == 'meta' or item == 'include':
                 # finding more than one module name is a problem
                 if action is not None:
                     raise AnsibleParserError("conflicting action statements", obj=self._task_ds)
@@ -279,7 +286,9 @@ class ModuleArgsParser:
                 action, args = self._normalize_parameters(value, action=action, additional_args=additional_args)
 
         # if we didn't see any module in the task at all, it's not a task really
-        if action is None:
+        if loader_error:
+            raise AnsibleParserError(loader_error.message, obj=self._task_ds)
+        elif action is None:
             raise AnsibleParserError("no action detected in task", obj=self._task_ds)
         elif args.get('_raw_params', '') != '' and action not in RAW_PARAM_MODULES:
             raise AnsibleParserError("this task '%s' has extra params, which is only allowed in the following modules: %s" % (action, ", ".join(RAW_PARAM_MODULES)), obj=self._task_ds)

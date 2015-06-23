@@ -48,15 +48,15 @@ class AnsibleError(Exception):
         if obj and isinstance(obj, AnsibleBaseYAMLObject):
             extended_error = self._get_extended_error()
             if extended_error:
-                self.message = 'ERROR! %s\n\n%s' % (message, extended_error)
+                self.message = '%s\n\n%s' % (message, extended_error)
         else:
-            self.message = 'ERROR! %s' % message
+            self.message = message
 
     def __str__(self):
-        return self.message
+        return 'ERROR! %s' % self.message
 
     def __repr__(self):
-        return self.message
+        return 'ERROR! %s' % self.message
 
     def _get_error_lines_from_file(self, file_name, line_number):
         '''

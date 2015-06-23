@@ -257,7 +257,12 @@ class PluginLoader:
                                   name.lstrip('_'))
                     return self._plugin_path_cache[alias_name]
 
-        return None
+        if name == 'ping' or (name != 'ping' and not self.find_plugin('ping')):
+            raise errors.AnsibleError("The module '%s' was not found in configured module paths. " \
+                                      "Additionally, core modules are missing. If this is a checkout, " \
+                                      "run 'git submodule update --init --recursive' to correct this problem." % (name))
+
+        raise errors.AnsibleError("The module '%s' was not found in configured module paths" % (name))
 
     def has_plugin(self, name):
         ''' Checks if a plugin named name exists '''
