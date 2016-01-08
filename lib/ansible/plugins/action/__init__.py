@@ -92,6 +92,13 @@ class ActionBase(with_metaclass(ABCMeta, object)):
             )
         return results
 
+    def _is_binary(self, module_path):
+        textchars = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)) - {0x7f})
+
+        with open(module_path, 'rb') as f:
+            start = f.read(1024)
+        return bool(start.translate(None, textchars))
+
     def _configure_module(self, module_name, module_args, task_vars=None):
         '''
         Handles the loading and templating of the module code through the
@@ -139,7 +146,10 @@ class ActionBase(with_metaclass(ABCMeta, object)):
         # insert shared code and arguments into the module
         (module_data, module_style, module_shebang) = modify_module(module_path, module_args, task_vars=task_vars)
 
-        return (module_style, module_shebang, module_data)
+        if self._is_binary(module_path):
+            return ('non_native_want_json', None, module_path, True)
+
+        return (module_style, module_shebang, module_data, False)
 
     def _compute_environment_string(self):
         '''
@@ -255,30 +265,35 @@ class ActionBase(with_metaclass(ABCMeta, object)):
             # If ssh breaks we could leave tmp directories out on the remote system.
             self._low_level_execute_command(cmd, sudoable=False)
 
-    def _transfer_data(self, remote_path, data):
+    def _transfer_data(self, remote_path, path_or_data, is_path=False):
         '''
         Copies the module data out to the temporary module path.
         '''
 
-        if isinstance(data, dict):
-            data = jsonify(data)
+        if not is_path:
+            data = path_or_data
+            if isinstance(data, dict):
+                data = jsonify(data)
 
-        afd, afile = tempfile.mkstemp()
-        afo = os.fdopen(afd, 'w')
-        try:
-            data = to_bytes(data, errors='strict')
-            afo.write(data)
-        except Exception as e:
-            #raise AnsibleError("failure encoding into utf-8: %s" % str(e))
-            raise AnsibleError("failure writing module data to temporary file for transfer: %s" % str(e))
+            afd, afile = tempfile.mkstemp()
+            afo = os.fdopen(afd, 'w')
+            try:
+                data = to_bytes(data, errors='strict')
+                afo.write(data)
+            except Exception as e:
+                #raise AnsibleError("failure encoding into utf-8: %s" % str(e))
+                raise AnsibleError("failure writing module data to temporary file for transfer: %s" % str(e))
 
-        afo.flush()
-        afo.close()
+            afo.flush()
+            afo.close()
+        else:
+            afile = path_or_data
 
         try:
             self._connection.put_file(afile, remote_path)
         finally:
-            os.unlink(afile)
+            if not is_path:
+                os.unlink(afile)
 
         return remote_path
 
@@ -399,8 +414,9 @@ class ActionBase(with_metaclass(ABCMeta, object)):
         # let module know our verbosity
         module_args['_ansible_verbosity'] = self._display.verbosity
 
-        (module_style, shebang, module_data) = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
-        if not shebang:
+        (module_style, shebang, module_data, is_binary) = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
+
+        if not shebang and not is_binary:
             raise AnsibleError("module (%s) is missing interpreter line" % module_name)
 
         # a remote tmp path may be necessary and not already created
@@ -418,7 +434,7 @@ class ActionBase(with_metaclass(ABCMeta, object)):
 
         if remote_module_path or module_style != 'new':
             display.debug("transferring module to remote")
-            self._transfer_data(remote_module_path, module_data)
+            self._transfer_data(remote_module_path, module_data, is_path=is_binary)
             if module_style == 'old':
                 # we need to dump the module args to a k=v string in a file on
                 # the remote system, which can be read and parsed by the module
@@ -431,6 +447,9 @@ class ActionBase(with_metaclass(ABCMeta, object)):
             display.debug("done transferring module to remote")
 
         environment_string = self._compute_environment_string()
+
+        if is_binary:
+            self._remote_chmod('+x', remote_module_path)
 
         if tmp and "tmp" in tmp and self._play_context.become and self._play_context.become_user != 'root':
             # deal with possible umask issues once sudo'ed to other user

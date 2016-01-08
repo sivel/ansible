@@ -52,12 +52,12 @@ class ActionModule(ActionBase):
             module_args['_ansible_no_log'] = True
 
         # configure, upload, and chmod the target module
-        (module_style, shebang, module_data) = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
-        self._transfer_data(remote_module_path, module_data)
+        (module_style, shebang, module_data, is_binary) = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
+        self._transfer_data(remote_module_path, module_data, is_path=is_binary)
         self._remote_chmod('a+rx', remote_module_path)
 
         # configure, upload, and chmod the async_wrapper module
-        (async_module_style, shebang, async_module_data) = self._configure_module(module_name='async_wrapper', module_args=dict(), task_vars=task_vars)
+        (async_module_style, shebang, async_module_data, is_binary) = self._configure_module(module_name='async_wrapper', module_args=dict(), task_vars=task_vars)
         self._transfer_data(async_module_path, async_module_data)
         self._remote_chmod('a+rx', async_module_path)
 
