@@ -61,7 +61,7 @@ except ImportError:
 class Connection(ConnectionBase):
     '''WinRM connections over HTTP/HTTPS.'''
 
-    module_implementation_preferences = ('.ps1', '')
+    module_implementation_preferences = ('.ps1', '.exe', '')
     become_methods = []
     allow_executable = False
 
