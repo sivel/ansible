@@ -394,7 +394,7 @@ if HAS_FANCY_SSL_STUFF:
         for i in range(peer_cert.get_extension_count()):
             ext = peer_cert.get_extension(i)
             ext_name = ext.get_short_name()
-            if ext_name != b'subjectAltName':
+            if ext_name != 'subjectAltName':
                 continue
 
             # PyOpenSSL returns extension data in ASN.1 encoded form
