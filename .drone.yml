@@ -19,15 +19,15 @@ compose:
 
 matrix:
   TARGET:
-    - sanity TOXENV=py24
-    - sanity TOXENV=py26
-    - sanity TOXENV=py27
-    - sanity TOXENV=py34
-    - sanity TOXENV=py35
-    - centos6
-    - centos7
-    - fedora23
-    - fedora-rawhide
-    - ubuntu1204
-    - ubuntu1404
+    - '"sanity" "TOXENV=py24"'
+    - '"sanity" "TOXENV=py26"'
+    - '"sanity" "TOXENV=py27"'
+    - '"sanity" "TOXENV=py34"'
+    - '"sanity" "TOXENV=py35"'
+    - '"centos6"'
+    - '"centos7"'
+    - '"fedora23"'
+    - '"fedora-rawhide"'
+    - '"ubuntu1204"'
+    - '"ubuntu1404"'
 
