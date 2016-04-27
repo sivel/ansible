@@ -18,16 +18,16 @@ compose:
 
 
 matrix:
-  TARGET:
-    - '"sanity" "TOXENV=py24"'
-    - '"sanity" "TOXENV=py26"'
-    - '"sanity" "TOXENV=py27"'
-    - '"sanity" "TOXENV=py34"'
-    - '"sanity" "TOXENV=py35"'
-    - '"centos6"'
-    - '"centos7"'
-    - '"fedora23"'
-    - '"fedora-rawhide"'
-    - '"ubuntu1204"'
-    - '"ubuntu1404"'
+  ENVSTRING:
+    - TARGET=sanity TOXENV=py24
+    - TARGET=sanity TOXENV=py26
+    - TARGET=sanity TOXENV=py27
+    - TARGET=sanity TOXENV=py34
+    - TARGET=sanity TOXENV=py35
+    - TARGET=centos6
+    - TARGET=centos7
+    - TARGET=fedora23
+    - TARGET=fedora-rawhide
+    - TARGET=ubuntu1204
+    - TARGET=ubuntu1404
 

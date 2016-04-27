@@ -4,6 +4,8 @@ set -e
 set -u
 set -x
 
+eval "${ENVSTRING}"
+
 if [ "${TARGET}" = "sanity" ]; then
     ./test/code-smell/replace-urlopen.sh .
     ./test/code-smell/use-compat-six.sh lib
