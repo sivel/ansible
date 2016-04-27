@@ -8,6 +8,7 @@ build:
       - apt-get update
       - apt-get install apt-transport-https ca-certificates
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   santity_26:
@@ -19,6 +20,7 @@ build:
       - apt-get update
       - apt-get install apt-transport-https ca-certificates
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   santity_27:
@@ -30,6 +32,7 @@ build:
       - apt-get update
       - apt-get install apt-transport-https ca-certificates
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   santity_34:
@@ -41,6 +44,7 @@ build:
       - apt-get update
       - apt-get install apt-transport-https ca-certificates
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   santity_35:
@@ -52,6 +56,7 @@ build:
       - apt-get update
       - apt-get install apt-transport-https ca-certificates
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_centos6:
@@ -66,6 +71,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_centos7:
@@ -80,6 +86,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_fedora23:
@@ -94,6 +101,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_fedora_rawhide:
@@ -108,6 +116,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_ubuntu1204:
@@ -122,6 +131,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
   integration_ubuntu1404:
@@ -136,6 +146,7 @@ build:
       - apt-get update
       - apt-get install docker-engine
       - git submodule update --init --recursive
+      - pip install tox
       - ./test/utils/run_tests.sh
 
 
