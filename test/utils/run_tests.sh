@@ -4,16 +4,15 @@ set -e
 set -u
 set -x
 
-if [ "${TARGET}" = "sanity" ] && [ "${PY}" != "insanity" ]; then
-    TOXENV="py${PY/\./}"
+if [ "${TARGET}" = "sanity" ]; then
     ./test/code-smell/replace-urlopen.sh .
     ./test/code-smell/use-compat-six.sh lib
     ./test/code-smell/boilerplate.sh
     ./test/code-smell/required-and-default-attributes.sh
-    if test x"$TOXENV" != x'py24' ; then tox -e $TOXENV ; fi
+    if test x"$TOXENV" != x'py24' ; then pip install tox; tox ; fi
     if test x"$TOXENV" = x'py24' ; then python2.4 -V && python2.4 -m compileall -fq -x 'module_utils/(a10|rax|openstack|ec2|gce|docker_common|azure_rm_common).py' lib/ansible/module_utils ; fi
 
-elif [ "${TARGET}" != "sanity" ] && [ "${PY}" = "insanity" ]; then
+else
     if [[ "$TARGET" =~ centos7|fedora ]]
     then
         TARGET_OPTIONS="--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
