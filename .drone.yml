@@ -1,36 +1,156 @@
 build:
-  image: sivel/python:$${PY/insanity/2.7}
-  commands:
-    - apt-get update
-    - apt-get install apt-transport-https ca-certificates
-    - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-    - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
-    - apt-get update
-    - apt-get install docker-engine
-    - git submodule update --init --recursive
-    - pip install tox
-    - ./test/utils/run_tests.sh
+  santity_24:
+    image: sivel/python:2.4
+    environment:
+      - TOXENV=py24
+      - TARGET=sanity
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  santity_26:
+    image: sivel/python:2.6
+    environment:
+      - TOXENV=py26
+      - TARGET=sanity
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  santity_27:
+    image: sivel/python:2.7
+    environment:
+      - TOXENV=py27
+      - TARGET=sanity
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  santity_34:
+    image: sivel/python:3.4
+    environment:
+      - TOXENV=py34
+      - TARGET=sanity
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  santity_35:
+    image: sivel/python:3.5
+    environment:
+      - TOXENV=py26
+      - TARGET=sanity
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_centos6:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=centos6
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_centos7:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=centos7
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_fedora23:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=fedora23
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_fedora_rawhide:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=fedora-rawhide
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_ubuntu1204:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=ubuntu1204
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
+
+  integration_ubuntu1404:
+    image: sivel/python:2.7
+    environment:
+      - TARGET=ubuntu1404
+    commands:
+      - apt-get update
+      - apt-get install apt-transport-https ca-certificates
+      - apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+      - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
+      - apt-get update
+      - apt-get install docker-engine
+      - git submodule update --init --recursive
+      - pip install tox
+      - ./test/utils/run_tests.sh
 
 
 compose:
   dind:
     image: docker:dind
     privileged: true
-
-
-matrix:
-  PY:
-    - 2.6
-    - 2.7
-    - 3.4
-    - 3.5
-    - insanity
-  TARGET:
-    - sanity
-    - centos6
-    - centos7
-    - fedora23
-    - fedora-rawhide
-    - ubuntu1204
-    - ubuntu1404
-
