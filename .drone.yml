@@ -7,6 +7,7 @@ build:
     - echo 'deb https://apt.dockerproject.org/repo debian-jessie main' > /etc/apt/sources.list.d/docker.list
     - apt-get update
     - apt-get install docker-engine
+    - git submodule update --init --recursive
     - pip install tox
     - ./test/utils/run_tests.sh
 
