@@ -1,5 +1,5 @@
 build:
-  image: sivel/python:$${PY/insanity/2.7}
+  image: sivel/allsnakes
   commands:
     - apt-get update
     - apt-get install apt-transport-https ca-certificates
@@ -19,11 +19,11 @@ compose:
 
 matrix:
   TARGET:
-    - sanity PY=2.4 TOXENV=py24
-    - sanity PY=2.6 TOXENV=py26
-    - sanity PY=2.7 TOXENV=py27
-    - sanity PY=3.4 TOXENV=py34
-    - sanity PY=3.5 TOXENV=py35
+    - sanity TOXENV=py24
+    - sanity TOXENV=py26
+    - sanity TOXENV=py27
+    - sanity TOXENV=py34
+    - sanity TOXENV=py35
     - centos6
     - centos7
     - fedora23
