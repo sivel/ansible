@@ -18,15 +18,23 @@ compose:
 
 
 matrix:
-  ENVSTRING:
-    - TARGET=sanity TOXENV=py24
-    - TARGET=sanity TOXENV=py26
-    - TARGET=sanity TOXENV=py27
-    - TARGET=sanity TOXENV=py34
-    - TARGET=sanity TOXENV=py35
-    - TARGET=centos6
-    - TARGET=centos7
-    - TARGET=fedora23
-    - TARGET=fedora-rawhide
-    - TARGET=ubuntu1204
-    - TARGET=ubuntu1404
+  include:
+    - TARGET: sanity
+      TOXENV: py24
+    - TARGET: sanity
+      TOXENV: py26
+    - TARGET: sanity
+      TOXENV: py27
+    - TARGET: sanity
+      TOXENV: py34
+    - TARGET: sanity
+      TOXENV: py35
+    - TARGET: centos6
+    - TARGET: centos7
+      TARGET_OPTIONS: "--volume: /sys/fs/cgroup:/sys/fs/cgroup:ro"
+    - TARGET: fedora23
+      TARGET_OPTIONS: "--volume: /sys/fs/cgroup:/sys/fs/cgroup:ro"
+    - TARGET: fedora-rawhide
+      TARGET_OPTIONS: "--volume: /sys/fs/cgroup:/sys/fs/cgroup:ro"
+    - TARGET: ubuntu1204
+    - TARGET: ubuntu1404
