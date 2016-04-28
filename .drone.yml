@@ -11,7 +11,7 @@ build:
     - ./test/utils/run_tests.sh
 
 
-compose:
+services:
   dind:
     image: docker:dind
     privileged: true
