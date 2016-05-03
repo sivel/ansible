@@ -14,7 +14,6 @@ script:
     commands:
 #      - netstat -pntl
 #      - ls -al /sys/fs/cgroup
-      - ${INIT} &
       - ./test/utils/run_tests.sh
 
 
