@@ -21,8 +21,7 @@ services:
 
 
 volumes:
-  cgroup:
-    driver_opts: "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+    "/sys/fs/cgroup:/sys/fs/cgroup:ro":
 
 
 matrix:
