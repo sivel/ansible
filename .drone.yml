@@ -6,6 +6,8 @@ clone:
 script:
   build:
     image: sivel/allsnakes
+    environment:
+      - DOCKER_HOST=tcp://127.0.0.1:2375
     commands:
       - apt-get update
       - apt-get install -y apt-transport-https ca-certificates
@@ -44,4 +46,3 @@ matrix:
       TARGET_OPTIONS: "--volume: /sys/fs/cgroup:/sys/fs/cgroup:ro"
     - TARGET: ubuntu1204
     - TARGET: ubuntu1404
-
