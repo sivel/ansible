@@ -5,10 +5,10 @@ clone:
 
 script:
   build:
-    image: sivel/allsnakes
+    image: $$TARGET
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock"
+#      - "/var/run/docker.sock:/var/run/docker.sock"
 #    environment:
 #      - DOCKER_HOST=unix:///var/run/docker.sock
     commands:
@@ -25,22 +25,19 @@ script:
 
 matrix:
   include:
-    - TARGET: sanity
+    - TARGET: sivel/allsnakes
       TOXENV: py24
-    - TARGET: sanity
+    - TARGET: sivel/allsnakes
       TOXENV: py26
-    - TARGET: sanity
+    - TARGET: sivel/allsnakes
       TOXENV: py27
-    - TARGET: sanity
+    - TARGET: sivel/allsnakes
       TOXENV: py34
-    - TARGET: sanity
+    - TARGET: sivel/allsnakes
       TOXENV: py35
-    - TARGET: centos6
-    - TARGET: centos7
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
-    - TARGET: fedora23
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
-    - TARGET: fedora-rawhide
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
-    - TARGET: ubuntu1204
-    - TARGET: ubuntu1404
+    - TARGET: ansible/ansible:centos6
+    - TARGET: ansible/ansible:centos7
+    - TARGET: ansible/ansible:fedora23
+    - TARGET: ansible/ansible:fedora-rawhide
+    - TARGET: ansible/ansible:ubuntu1204
+    - TARGET: ansible/ansible:ubuntu1404
