@@ -16,6 +16,7 @@ script:
       - apt-get update
       - apt-get install -y docker-engine libffi-dev
       - netstat -pntl
+      - ls -al /sys/fs/cgroup
       - ./test/utils/run_tests.sh
 
 
