@@ -12,8 +12,8 @@ script:
 #    environment:
 #      - DOCKER_HOST=unix:///var/run/docker.sock
     commands:
-      - netstat -pntl
-      - ls -al /sys/fs/cgroup
+#      - netstat -pntl
+#      - ls -al /sys/fs/cgroup
       - ./test/utils/run_tests.sh
 
 
