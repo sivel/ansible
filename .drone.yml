@@ -8,19 +8,18 @@ script:
     image: sivel/allsnakes
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock"
     environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DOCKER_HOST=tcp://127.0.0.1:2375
     commands:
       - netstat -pntl
       - ls -al /sys/fs/cgroup
       - ./test/utils/run_tests.sh
 
 
-#services:
-#  dind:
-#    image: docker:dind
-#    privileged: true
+services:
+  dind:
+    image: docker:dind
+    privileged: true
 
 
 matrix:
