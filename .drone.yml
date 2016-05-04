@@ -6,8 +6,8 @@ clone:
 script:
   build:
     image: sivel/allsnakes
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+#    volumes:
+#      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
     environment:
       - DOCKER_HOST=tcp://127.0.0.1:2375
     commands:
@@ -22,8 +22,8 @@ services:
   dind:
     image: docker:dind
     privileged: true
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+#    volumes:
+#      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
 
 matrix:
   include:
@@ -39,10 +39,10 @@ matrix:
       TOXENV: py35
     - TARGET: centos6
     - TARGET: centos7
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+#      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
     - TARGET: fedora23
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+#      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
     - TARGET: fedora-rawhide
-      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+#      TARGET_OPTIONS: "--volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
     - TARGET: ubuntu1204
     - TARGET: ubuntu1404
