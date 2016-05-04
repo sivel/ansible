@@ -6,10 +6,12 @@ clone:
 script:
   build:
     image: sivel/allsnakes
-#    volumes:
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
 #      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
     environment:
-      - DOCKER_HOST=tcp://127.0.0.1:2375
+#      - DOCKER_HOST=tcp://127.0.0.1:2375
+       - DOCKER_HOST=unix:///var/run/docker.sock
     commands:
       - ps aux
       - netstat -pntl
