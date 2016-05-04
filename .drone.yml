@@ -6,7 +6,6 @@ clone:
 script:
   build:
     image: ${TARGET}
-    command: ${INIT}
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
 #      - "/var/run/docker.sock:/var/run/docker.sock"
