@@ -9,8 +9,8 @@ script:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
       - "/var/run/docker.sock:/var/run/docker.sock"
-#    environment:
-#      - DOCKER_HOST=unix:///var/run/docker.sock
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
     commands:
       - netstat -pntl
       - ls -al /sys/fs/cgroup
