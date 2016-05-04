@@ -14,7 +14,6 @@ script:
     commands:
 #      - netstat -pntl
 #      - ls -al /sys/fs/cgroup
-      - ps aux
       - ./test/utils/run_tests.sh
 
 
