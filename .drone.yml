@@ -35,9 +35,9 @@ matrix:
       TOXENV: py34
     - TARGET: sivel/allsnakes
       TOXENV: py35
-    - TARGET: "ansible/ansible:centos6"
-    - TARGET: "ansible/ansible:centos7"
-    - TARGET: "ansible/ansible:fedora23"
-    - TARGET: "ansible/ansible:fedora-rawhide"
-    - TARGET: "ansible/ansible:ubuntu1204"
-    - TARGET: "ansible/ansible:ubuntu1404"
+    - TARGET: ansible/ansible:centos6
+    - TARGET: ansible/ansible:centos7
+    - TARGET: ansible/ansible:fedora23
+    - TARGET: ansible/ansible:fedora-rawhide
+    - TARGET: ansible/ansible:ubuntu1204
+    - TARGET: ansible/ansible:ubuntu1404
