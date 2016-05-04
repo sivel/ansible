@@ -213,7 +213,7 @@
 
 - name: Test that SNI succeeds on python versions that have SNI
   uri:
-    url: 'https://sni.velox.ch'
+    url: 'https://alice.sni.velox.ch'
     return_content: true
   when: ansible_python.has_sslcontext
   register: result
@@ -227,7 +227,7 @@
 
 - name: Verify SNI verification fails on old python without urllib3 contrib
   uri:
-    url: 'https://sni.velox.ch'
+    url: 'https://alice.sni.velox.ch'
   ignore_errors: true
   when: not ansible_python.has_sslcontext
   register: result
@@ -253,7 +253,7 @@
 
 - name: Verify SNI verificaiton succeeds on old python with urllib3 contrib
   uri:
-    url: 'https://sni.velox.ch'
+    url: 'https://alice.sni.velox.ch'
     return_content: true
   when: not ansible_python.has_sslcontext and not is_ubuntu_precise|bool
   register: result
