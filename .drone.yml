@@ -14,7 +14,6 @@ script:
     commands:
 #      - netstat -pntl
 #      - ls -al /sys/fs/cgroup
-      - ${INIT} &
       - ./test/utils/run_tests.sh
 
 
@@ -37,14 +36,8 @@ matrix:
     - TARGET: sivel/allsnakes
       TOXENV: py35
     - TARGET: "ansible/ansible:centos6"
-      INIT: /sbin/init
     - TARGET: "ansible/ansible:centos7"
-      INIT: /usr/sbin/init
     - TARGET: "ansible/ansible:fedora23"
-      INIT: /usr/sbin/init
     - TARGET: "ansible/ansible:fedora-rawhide"
-      INIT: /usr/sbin/init
     - TARGET: "ansible/ansible:ubuntu1204"
-      INIT: /sbin/init
     - TARGET: "ansible/ansible:ubuntu1404"
-      INIT: /sbin/init
