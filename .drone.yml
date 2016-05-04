@@ -12,6 +12,7 @@ script:
       - DOCKER_HOST=tcp://127.0.0.1:2375
     commands:
       - netstat -pntl
+      - ls -al /var/run/
       - ls -al /sys/fs/cgroup
       - ./test/utils/run_tests.sh
 
@@ -20,7 +21,8 @@ services:
   dind:
     image: docker:dind
     privileged: true
-
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
 
 matrix:
   include:
