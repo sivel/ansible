@@ -11,6 +11,7 @@ script:
     environment:
       - DOCKER_HOST=tcp://127.0.0.1:2375
     commands:
+      - ps aux
       - netstat -pntl
       - ls -al /var/run/
       - ls -al /sys/fs/cgroup
