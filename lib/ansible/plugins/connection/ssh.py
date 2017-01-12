@@ -27,6 +27,7 @@ import select
 import subprocess
 import time
 
+from functools import wraps
 from ansible import constants as C
 from ansible.compat.six import PY3, text_type, binary_type
 from ansible.compat.six.moves import shlex_quote
@@ -46,6 +47,54 @@ except ImportError:
     display = Display()
 
 SSHPASS_AVAILABLE = None
+
+
+def _ssh_retry(func):
+    """
+    Decorator to retry ssh/scp/sftp in the case of a connection failure
+
+    Will retry if:
+    * an exception is caught
+    * ssh returns 255
+    Will not retry if
+    * remaining_tries is <2
+    * retries limit reached
+    """
+    @wraps(func)
+    def wrapped(self, *args, **kwargs):
+        remaining_tries = int(C.ANSIBLE_SSH_RETRIES) + 1
+        cmd_summary = "%s..." % args[0]
+        for attempt in range(remaining_tries):
+            try:
+                return_tuple = func(self, *args, **kwargs)
+                display.vvv(return_tuple, host=self.host)
+                # 0 = success
+                # 1-254 = remote command return code
+                # 255 = failure from the ssh command itself
+                if return_tuple[0] != 255:
+                    break
+                else:
+                    raise AnsibleConnectionFailure("Failed to connect to the host via ssh: %s" % to_native(return_tuple[2]))
+            except (AnsibleConnectionFailure, Exception) as e:
+                if attempt == remaining_tries - 1:
+                    raise
+                else:
+                    pause = 2 ** attempt - 1
+                    if pause > 30:
+                        pause = 30
+
+                    if isinstance(e, AnsibleConnectionFailure):
+                        msg = "ssh_retry: attempt: %d, ssh return code is 255. cmd (%s), pausing for %d seconds" % (attempt, cmd_summary, pause)
+                    else:
+                        msg = "ssh_retry: attempt: %d, caught exception(%s) from cmd (%s), pausing for %d seconds" % (attempt, e, cmd_summary, pause)
+
+                    display.vv(msg, host=self.host)
+
+                    time.sleep(pause)
+                    continue
+
+        return return_tuple
+    return wrapped
 
 
 class Connection(ConnectionBase):
@@ -575,7 +624,62 @@ class Connection(ConnectionBase):
 
         return (p.returncode, b_stdout, b_stderr)
 
-    def _exec_command(self, cmd, in_data=None, sudoable=True):
+    def _file_transport_command(self, in_path, out_path, sftp_action):
+        # scp and sftp require square brackets for IPv6 addresses, but
+        # accept them for hostnames and IPv4 addresses too.
+        host = '[%s]' % self.host
+
+        # since this can be a non-bool now, we need to handle it correctly
+        scp_if_ssh = C.DEFAULT_SCP_IF_SSH
+        if not isinstance(scp_if_ssh, bool):
+            scp_if_ssh = scp_if_ssh.lower()
+            if scp_if_ssh in BOOLEANS:
+                scp_if_ssh = boolean(scp_if_ssh)
+            elif scp_if_ssh != 'smart':
+                raise AnsibleOptionsError('scp_if_ssh needs to be one of [smart|True|False]')
+
+        # create a list of commands to use based on config options
+        methods = ['sftp']
+        if scp_if_ssh == 'smart':
+            methods.append('scp')
+        elif scp_if_ssh:
+            methods = ['scp']
+
+        success = False
+        for method in methods:
+            if method == 'sftp':
+                cmd = self._build_command('sftp', to_bytes(host))
+                in_data = u"{0} {1} {2}\n".format(sftp_action, shlex_quote(in_path), shlex_quote(out_path))
+            elif method == 'scp':
+                if sftp_action == 'get':
+                    cmd = self._build_command('scp', u'{0}:{1}'.format(host, shlex_quote(in_path)), out_path)
+                else:
+                    cmd = self._build_command('scp', in_path, u'{0}:{1}'.format(host, shlex_quote(out_path)))
+                in_data = None
+
+            in_data = to_bytes(in_data, nonstring='passthru')
+            (returncode, stdout, stderr) = self._run(cmd, in_data, checkrc=False)
+            # Check the return code and rollover to next method if failed
+            if returncode == 0:
+                return (returncode, stdout, stderr)
+            else:
+                # If not in smart mode, the data will be printed by the raise below
+                if scp_if_ssh == 'smart':
+                    display.warning(msg='%s transfer mechanism failed on %s. Use ANSIBLE_DEBUG=1 to see detailed information' % (method, host))
+                    display.debug(msg='%s' % to_native(stdout))
+                    display.debug(msg='%s' % to_native(stderr))
+
+        if returncode == 255:
+            raise AnsibleConnectionFailure("Failed to connect to the host via %s: %s" % (method, to_native(stderr)))
+        else:
+            raise AnsibleError("failed to transfer file to {0}:\n{1}\n{2}"\
+                    .format(to_native(out_path), to_native(stdout), to_native(stderr)))
+
+    #
+    # Main public methods
+    #
+    @_ssh_retry
+    def exec_command(self, cmd, in_data=None, sudoable=True):
         ''' run a command on the remote host '''
 
         super(Connection, self).exec_command(cmd, in_data=in_data, sudoable=sudoable)
@@ -600,105 +704,7 @@ class Connection(ConnectionBase):
 
         return (returncode, stdout, stderr)
 
-    def _file_transport_command(self, in_path, out_path, sftp_action):
-        # scp and sftp require square brackets for IPv6 addresses, but
-        # accept them for hostnames and IPv4 addresses too.
-        host = '[%s]' % self.host
-
-        # since this can be a non-bool now, we need to handle it correctly
-        scp_if_ssh = C.DEFAULT_SCP_IF_SSH
-        if not isinstance(scp_if_ssh, bool):
-            scp_if_ssh = scp_if_ssh.lower()
-            if scp_if_ssh in BOOLEANS:
-                scp_if_ssh = boolean(scp_if_ssh)
-            elif scp_if_ssh != 'smart':
-                raise AnsibleOptionsError('scp_if_ssh needs to be one of [smart|True|False]')
-
-        # create a list of commands to use based on config options
-        methods = ['sftp']
-        if scp_if_ssh == 'smart':
-            methods.append('scp')
-        elif scp_if_ssh:
-            methods = ['scp']
-
-        success = False
-        res = None
-        for method in methods:
-            if method == 'sftp':
-                cmd = self._build_command('sftp', to_bytes(host))
-                in_data = u"{0} {1} {2}\n".format(sftp_action, shlex_quote(in_path), shlex_quote(out_path))
-            elif method == 'scp':
-                if sftp_action == 'get':
-                    cmd = self._build_command('scp', u'{0}:{1}'.format(host, shlex_quote(in_path)), out_path)
-                else:
-                    cmd = self._build_command('scp', in_path, u'{0}:{1}'.format(host, shlex_quote(out_path)))
-                in_data = None
-
-            in_data = to_bytes(in_data, nonstring='passthru')
-            (returncode, stdout, stderr) = self._run(cmd, in_data, checkrc=False)
-            # Check the return code and rollover to next method if failed
-            if returncode == 0:
-                success = True
-                break
-            else:
-                # If not in smart mode, the data will be printed by the raise below
-                if scp_if_ssh == 'smart':
-                    display.warning(msg='%s transfer mechanism failed on %s. Use ANSIBLE_DEBUG=1 to see detailed information' % (method, host))
-                    display.debug(msg='%s' % to_native(stdout))
-                    display.debug(msg='%s' % to_native(stderr))
-                res = (returncode, stdout, stderr)
-
-        if not success:
-            raise AnsibleError("failed to transfer file to {0}:\n{1}\n{2}"\
-                    .format(to_native(out_path), to_native(res[1]), to_native(res[2])))
-
-    #
-    # Main public methods
-    #
-    def exec_command(self, *args, **kwargs):
-        """
-        Wrapper around _exec_command to retry in the case of an ssh failure
-
-        Will retry if:
-        * an exception is caught
-        * ssh returns 255
-        Will not retry if
-        * remaining_tries is <2
-        * retries limit reached
-        """
-
-        remaining_tries = int(C.ANSIBLE_SSH_RETRIES) + 1
-        cmd_summary = "%s..." % args[0]
-        for attempt in range(remaining_tries):
-            try:
-                return_tuple = self._exec_command(*args, **kwargs)
-                # 0 = success
-                # 1-254 = remote command return code
-                # 255 = failure from the ssh command itself
-                if return_tuple[0] != 255:
-                    break
-                else:
-                    raise AnsibleConnectionFailure("Failed to connect to the host via ssh: %s" % to_native(return_tuple[2]))
-            except (AnsibleConnectionFailure, Exception) as e:
-                if attempt == remaining_tries - 1:
-                    raise
-                else:
-                    pause = 2 ** attempt - 1
-                    if pause > 30:
-                        pause = 30
-
-                    if isinstance(e, AnsibleConnectionFailure):
-                        msg = "ssh_retry: attempt: %d, ssh return code is 255. cmd (%s), pausing for %d seconds" % (attempt, cmd_summary, pause)
-                    else:
-                        msg = "ssh_retry: attempt: %d, caught exception(%s) from cmd (%s), pausing for %d seconds" % (attempt, e, cmd_summary, pause)
-
-                    display.vv(msg, host=self.host)
-
-                    time.sleep(pause)
-                    continue
-
-        return return_tuple
-
+    @_ssh_retry
     def put_file(self, in_path, out_path):
         ''' transfer a file from local to remote '''
 
@@ -708,15 +714,16 @@ class Connection(ConnectionBase):
         if not os.path.exists(to_bytes(in_path, errors='surrogate_or_strict')):
             raise AnsibleFileNotFound("file or module does not exist: {0}".format(to_native(in_path)))
 
-        self._file_transport_command(in_path, out_path, 'put')
+        return self._file_transport_command(in_path, out_path, 'put')
 
+    @_ssh_retry
     def fetch_file(self, in_path, out_path):
         ''' fetch a file from remote to local '''
 
         super(Connection, self).fetch_file(in_path, out_path)
 
         display.vvv(u"FETCH {0} TO {1}".format(in_path, out_path), host=self.host)
-        self._file_transport_command(in_path, out_path, 'get')
+        return self._file_transport_command(in_path, out_path, 'get')
 
     def close(self):
         # If we have a persistent ssh connection (ControlPersist), we can ask it
