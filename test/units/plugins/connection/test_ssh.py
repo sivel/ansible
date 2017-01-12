@@ -70,7 +70,7 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn = ssh.Connection(pc, new_stdin)
         conn._build_command('ssh')
 
-    def test_plugins_connection_ssh__exec_command(self):
+    def test_plugins_connection_ssh_exec_command(self):
         pc = PlayContext()
         new_stdin = StringIO()
         conn = ssh.Connection(pc, new_stdin)
@@ -80,8 +80,8 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn._run = MagicMock()
         conn._run.return_value = (0, 'stdout', 'stderr')
 
-        res, stdout, stderr = conn._exec_command('ssh')
-        res, stdout, stderr = conn._exec_command('ssh', 'this is some data')
+        res, stdout, stderr = conn.exec_command('ssh')
+        res, stdout, stderr = conn.exec_command('ssh', 'this is some data')
 
     @patch('select.select')
     @patch('fcntl.fcntl')
@@ -267,36 +267,36 @@ class TestConnectionBaseClass(unittest.TestCase):
         self.assertTrue(conn._flags['become_nopasswd_error'])
 
     @patch('time.sleep')
-    def test_plugins_connection_ssh_exec_command(self, mock_sleep):
+    def test_plugins_connection_ssh_exec_command_retries(self, mock_sleep):
         pc = PlayContext()
         new_stdin = StringIO()
         conn = ssh.Connection(pc, new_stdin)
         conn._build_command = MagicMock()
-        conn._exec_command = MagicMock()
+        conn._run = MagicMock()
 
         C.ANSIBLE_SSH_RETRIES = 9
 
         # test a regular, successful execution
-        conn._exec_command.return_value = (0, b'stdout', b'')
+        conn._run.return_value = (0, b'stdout', b'')
         res = conn.exec_command('ssh', 'some data')
-        self.assertEquals(res, (0, b'stdout', b''), msg='exec_command did not return what the _exec_command helper returned')
+        self.assertEquals(res, (0, b'stdout', b''), msg='exec_command did not return the expected data')
 
         # test a retry, followed by success
-        conn._exec_command.return_value = None
-        conn._exec_command.side_effect = [(255, '', ''), (0, b'stdout', b'')]
+        conn._run.side_effect = [(255, '', ''), (0, b'stdout', b'')]
         res = conn.exec_command('ssh', 'some data')
-        self.assertEquals(res, (0, b'stdout', b''), msg='exec_command did not return what the _exec_command helper returned')
+        self.assertEquals(res, (0, b'stdout', b''), msg='exec_command did not return the expected data')
 
         # test multiple failures
-        conn._exec_command.side_effect = [(255, b'', b'')] * 10
+        conn._run.side_effect = [(255, b'', b'')] * 10
         self.assertRaises(AnsibleConnectionFailure, conn.exec_command, 'ssh', 'some data')
 
         # test other failure from exec_command
-        conn._exec_command.side_effect = [Exception('bad')] * 10
+        conn._run.side_effect = [Exception('bad')] * 10
         self.assertRaises(Exception, conn.exec_command, 'ssh', 'some data')
 
+    @patch('time.sleep')
     @patch('os.path.exists')
-    def test_plugins_connection_ssh_put_file(self, mock_ospe):
+    def test_plugins_connection_ssh_put_file(self, mock_ospe, mock_sleep):
         pc = PlayContext()
         new_stdin = StringIO()
         conn = ssh.Connection(pc, new_stdin)
@@ -307,6 +307,8 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn._build_command.return_value = 'some command to run'
         conn._run.return_value = (0, '', '')
         conn.host = "some_host"
+
+        C.ANSIBLE_SSH_RETRIES = 9
 
         # Test with C.DEFAULT_SCP_IF_SSH set to smart
         # Test when SFTP works
@@ -341,7 +343,6 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn.put_file(u'/path/to/in/file/with/unicode-fö〩', u'/path/to/dest/file/with/unicode-fö〩')
         conn._run.assert_called_with('some command to run', expected_in_data, checkrc=False)
 
-
         # test that a non-zero rc raises an error
         conn._run.return_value = (1, 'stdout', 'some errors')
         self.assertRaises(AnsibleError, conn.put_file, '/path/to/bad/file', '/remote/path/to/file')
@@ -351,7 +352,15 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn._run.return_value = (0, 'stdout', '')
         self.assertRaises(AnsibleFileNotFound, conn.put_file, '/path/to/bad/file', '/remote/path/to/file')
 
-    def test_plugins_connection_ssh_fetch_file(self):
+        # test a retry, followed by success
+        with patch('ansible.plugins.connection.ssh.os') as os_mock:
+            os_mock.path.exists.return_value = True
+            conn._run.side_effect = [(255, '', ''), (0, b'stdout', b'')]
+            res = conn.put_file('/path/to/in/file', '/path/to/dest/file')
+            self.assertEquals(res, (0, b'stdout', b''), msg='put_file did not return the expected response')
+
+    @patch('time.sleep')
+    def test_plugins_connection_ssh_fetch_file(self, mock_sleep):
         pc = PlayContext()
         new_stdin = StringIO()
         conn = ssh.Connection(pc, new_stdin)
@@ -361,6 +370,8 @@ class TestConnectionBaseClass(unittest.TestCase):
         conn._build_command.return_value = 'some command to run'
         conn._run.return_value = (0, '', '')
         conn.host = "some_host"
+
+        C.ANSIBLE_SSH_RETRIES = 9
 
         # Test with C.DEFAULT_SCP_IF_SSH set to smart
         # Test when SFTP works
@@ -398,3 +409,8 @@ class TestConnectionBaseClass(unittest.TestCase):
         # test that a non-zero rc raises an error
         conn._run.return_value = (1, 'stdout', 'some errors')
         self.assertRaises(AnsibleError, conn.fetch_file, '/path/to/bad/file', '/remote/path/to/file')
+
+        # test a retry, followed by success
+        conn._run.side_effect = [(255, '', ''), (0, b'stdout', b'')]
+        res = conn.fetch_file('/path/to/in/file', '/path/to/dest/file')
+        self.assertEquals(res, (0, b'stdout', b''), msg='fetch_file did not return the expected response')
