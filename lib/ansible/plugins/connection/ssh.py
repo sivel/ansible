@@ -368,6 +368,7 @@ class Connection(ConnectionBase):
 
         return b''.join(output), remainder
 
+    @_ssh_retry
     def _run(self, cmd, in_data, sudoable=True, checkrc=True):
         '''
         Starts the command and communicates with it until it ends.
@@ -678,7 +679,6 @@ class Connection(ConnectionBase):
     #
     # Main public methods
     #
-    @_ssh_retry
     def exec_command(self, cmd, in_data=None, sudoable=True):
         ''' run a command on the remote host '''
 
@@ -704,7 +704,6 @@ class Connection(ConnectionBase):
 
         return (returncode, stdout, stderr)
 
-    @_ssh_retry
     def put_file(self, in_path, out_path):
         ''' transfer a file from local to remote '''
 
@@ -716,7 +715,6 @@ class Connection(ConnectionBase):
 
         return self._file_transport_command(in_path, out_path, 'put')
 
-    @_ssh_retry
     def fetch_file(self, in_path, out_path):
         ''' fetch a file from remote to local '''
 
