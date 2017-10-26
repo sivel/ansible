@@ -2122,7 +2122,7 @@ class AnsibleModule(object):
         except:
             # we don't have access to the cwd, probably because of sudo.
             # Try and move to a neutral location to prevent errors
-            for cwd in [os.path.expandvars('$HOME'), tempfile.gettempdir()]:
+            for cwd in [os.path.expanduser('~'), os.path.expandvars('$HOME'), tempfile.gettempdir()]:
                 try:
                     if os.access(cwd, os.F_OK | os.R_OK):
                         os.chdir(cwd)
