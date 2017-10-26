@@ -292,7 +292,7 @@ def main():
     mode = module.params['mode']
     remote_src = module.params['remote_src']
 
-    raise Exception(os.path.listdir(os.path.dirname(b_src)))
+    raise Exception(os.listdir(os.path.dirname(b_src)))
 
     if not os.path.exists(b_src):
         module.fail_json(msg="Source %s not found" % (src))
