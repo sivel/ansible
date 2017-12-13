@@ -22,6 +22,8 @@ __metaclass__ = type
 from units.mock.loader import DictDataLoader
 import uuid
 
+from ansible import constants as C
+
 from ansible.compat.tests import unittest
 from ansible.compat.tests.mock import patch, MagicMock
 from ansible.errors import AnsibleError, AnsibleParserError
@@ -69,7 +71,6 @@ class TestStrategyBase(unittest.TestCase):
         mock_tqm._notified_handlers = {}
         mock_tqm._listening_handlers = {}
         strategy_base = StrategyBase(tqm=mock_tqm)
-        strategy_base.cleanup()
 
     def test_strategy_base_run(self):
         queue_items = []
@@ -125,7 +126,6 @@ class TestStrategyBase(unittest.TestCase):
         mock_tqm._unreachable_hosts = dict(host1=True)
         mock_iterator.get_failed_hosts.return_value = []
         self.assertEqual(strategy_base.run(iterator=mock_iterator, play_context=mock_play_context, result=False), mock_tqm.RUN_UNREACHABLE_HOSTS)
-        strategy_base.cleanup()
 
     def test_strategy_base_get_hosts(self):
         queue_items = []
@@ -178,9 +178,9 @@ class TestStrategyBase(unittest.TestCase):
 
         mock_tqm._unreachable_hosts = ["host02"]
         self.assertEqual(strategy_base.get_hosts_remaining(play=mock_play), mock_hosts[2:])
-        strategy_base.cleanup()
 
     @patch.object(WorkerProcess, 'run')
+    @patch.object(C, 'ANSIBLE_PROCESS_MODEL', 'forking')
     def test_strategy_base_queue_task(self, mock_worker):
         def fake_run(self):
             return
@@ -210,17 +210,18 @@ class TestStrategyBase(unittest.TestCase):
         try:
             strategy_base = StrategyBase(tqm=tqm)
             strategy_base._queue_task(host=mock_host, task=MagicMock(), task_vars=dict(), play_context=MagicMock())
-            self.assertEqual(strategy_base._cur_worker, 1)
+            self.assertEqual(tqm._cur_worker, 1)
             self.assertEqual(strategy_base._pending_results, 1)
             strategy_base._queue_task(host=mock_host, task=MagicMock(), task_vars=dict(), play_context=MagicMock())
-            self.assertEqual(strategy_base._cur_worker, 2)
+            self.assertEqual(tqm._cur_worker, 2)
             self.assertEqual(strategy_base._pending_results, 2)
             strategy_base._queue_task(host=mock_host, task=MagicMock(), task_vars=dict(), play_context=MagicMock())
-            self.assertEqual(strategy_base._cur_worker, 0)
+            self.assertEqual(tqm._cur_worker, 0)
             self.assertEqual(strategy_base._pending_results, 3)
         finally:
             tqm.cleanup()
 
+    @patch.object(C, 'ANSIBLE_PROCESS_MODEL', 'forking')
     def test_strategy_base_process_pending_results(self):
         mock_tqm = MagicMock()
         mock_tqm._terminated = False
@@ -416,7 +417,6 @@ class TestStrategyBase(unittest.TestCase):
 
         # queue_items.append(('bad'))
         # self.assertRaises(AnsibleError, strategy_base._process_pending_results, iterator=mock_iterator)
-        strategy_base.cleanup()
 
     def test_strategy_base_load_included_file(self):
         fake_loader = DictDataLoader({
@@ -453,7 +453,6 @@ class TestStrategyBase(unittest.TestCase):
 
         strategy_base = StrategyBase(tqm=mock_tqm)
         strategy_base._loader = fake_loader
-        strategy_base.cleanup()
 
         mock_play = MagicMock()
 
@@ -480,6 +479,7 @@ class TestStrategyBase(unittest.TestCase):
         self.assertEqual(res, [])
 
     @patch.object(WorkerProcess, 'run')
+    @patch.object(C, 'ANSIBLE_PROCESS_MODEL', 'forking')
     def test_strategy_base_run_handlers(self, mock_worker):
         def fake_run(*args):
             return
@@ -543,5 +543,4 @@ class TestStrategyBase(unittest.TestCase):
 
             result = strategy_base.run_handlers(iterator=mock_iterator, play_context=mock_play_context)
         finally:
-            strategy_base.cleanup()
             tqm.cleanup()

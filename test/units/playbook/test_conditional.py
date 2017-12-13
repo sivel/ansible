@@ -2,7 +2,7 @@
 from ansible.compat.tests import unittest
 from units.mock.loader import DictDataLoader
 
-from ansible.plugins.strategy import SharedPluginLoaderObj
+from ansible.executor.shared_plugin_loader import SharedPluginLoaderObj
 from ansible.template import Templar
 from ansible import errors
 
