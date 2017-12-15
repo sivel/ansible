@@ -34,7 +34,7 @@ import subprocess
 from collections import Mapping
 
 from ansible.errors import AnsibleError, AnsibleParserError
-from ansible.module_utils.basic import json_dict_bytes_to_unicode
+from ansible.module_utils.common.json import json_dict_bytes_to_unicode
 from ansible.module_utils.six import iteritems
 from ansible.module_utils._text import to_native, to_text
 from ansible.plugins.inventory import BaseInventoryPlugin, Cacheable

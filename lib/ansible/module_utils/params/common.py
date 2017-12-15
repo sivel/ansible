@@ -6,11 +6,8 @@
 import os
 import re
 import sys
-import json  # TODO: basic?
-import datetime
 
-from collections import Mapping, Sequence, Set
-from itertools import repeat
+from collections import Mapping, Sequence
 
 # Python2 & 3 way to get NoneType
 NoneType = type(None)
@@ -24,17 +21,17 @@ except ImportError:
     SEQUENCETYPE = (Sequence, frozenset)
 
 
+from ansible.module_utils.common.json import json, jsonify
 from ansible.module_utils.pycompat24 import literal_eval
 from ansible.module_utils.parsing.convert_bool import BOOLEANS_FALSE, BOOLEANS_TRUE, boolean
 from ansible.module_utils.six import (
     binary_type,
     integer_types,
-    iteritems,
     string_types,
     text_type,
 )
-from ansible.module_utils._text import to_native, to_text
-
+from ansible.module_utils._text import to_native
+from ansible.module_utils.text.format import _lenient_lowercase, human_to_bytes
 
 _NUMBERTYPES = tuple(list(integer_types) + [float])
 
@@ -42,20 +39,6 @@ _NUMBERTYPES = tuple(list(integer_types) + [float])
 # ansible.module_utils.six is preferred
 
 NUMBERTYPES = _NUMBERTYPES
-
-
-# TODO: dedupe
-SIZE_RANGES = {
-    'Y': 1 << 80,
-    'Z': 1 << 70,
-    'E': 1 << 60,
-    'P': 1 << 50,
-    'T': 1 << 40,
-    'G': 1 << 30,
-    'M': 1 << 20,
-    'K': 1 << 10,
-    'B': 1,
-}
 
 
 FILE_COMMON_ARGUMENTS = dict(
@@ -85,20 +68,6 @@ class AnsibleFallbackNotFound(Exception):
     pass
 
 
-def _lenient_lowercase(lst):
-    """Lowercase elements of a list.
-
-    If an element is not a string, pass it through untouched.
-    """
-    lowered = []
-    for value in lst:
-        try:
-            lowered.append(value.lower())
-        except AttributeError:
-            lowered.append(value)
-    return lowered
-
-
 def return_values(obj):
     """ Return native stringified values from datastructures.
 
@@ -122,103 +91,6 @@ def return_values(obj):
         yield to_native(obj, nonstring='simplerepr')
     else:
         raise TypeError('Unknown parameter type: %s, %s' % (type(obj), obj))
-
-
-# TODO: dedupe
-def json_dict_bytes_to_unicode(d, encoding='utf-8', errors='surrogate_or_strict'):
-    ''' Recursively convert dict keys and values to byte str
-
-        Specialized for json return because this only handles, lists, tuples,
-        and dict container types (the containers that the json module returns)
-    '''
-
-    if isinstance(d, binary_type):
-        # Warning, can traceback
-        return to_text(d, encoding=encoding, errors=errors)
-    elif isinstance(d, dict):
-        return dict(map(json_dict_bytes_to_unicode, iteritems(d), repeat(encoding), repeat(errors)))
-    elif isinstance(d, list):
-        return list(map(json_dict_bytes_to_unicode, d, repeat(encoding), repeat(errors)))
-    elif isinstance(d, tuple):
-        return tuple(map(json_dict_bytes_to_unicode, d, repeat(encoding), repeat(errors)))
-    else:
-        return d
-
-
-# TODO: dedupe
-def _json_encode_fallback(obj):
-    if isinstance(obj, Set):
-        return list(obj)
-    elif isinstance(obj, datetime.datetime):
-        return obj.isoformat()
-    raise TypeError("Cannot json serialize %s" % to_native(obj))
-
-
-# TODO: dedupe
-def jsonify(data, **kwargs):
-    for encoding in ("utf-8", "latin-1"):
-        try:
-            return json.dumps(data, encoding=encoding, default=_json_encode_fallback, **kwargs)
-        # Old systems using old simplejson module does not support encoding keyword.
-        except TypeError:
-            try:
-                new_data = json_dict_bytes_to_unicode(data, encoding=encoding)
-            except UnicodeDecodeError:
-                continue
-            return json.dumps(new_data, default=_json_encode_fallback, **kwargs)
-        except UnicodeDecodeError:
-            continue
-    raise UnicodeError('Invalid unicode encoding encountered')
-
-
-# TODO: dedupe
-def human_to_bytes(number, default_unit=None, isbits=False):
-
-    '''
-    Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument
-    ex:
-      human_to_bytes('10M') <=> human_to_bytes(10, 'M')
-    '''
-    m = re.search(r'^\s*(\d*\.?\d*)\s*([A-Za-z]+)?', str(number), flags=re.IGNORECASE)
-    if m is None:
-        raise ValueError("human_to_bytes() can't interpret following string: %s" % str(number))
-    try:
-        num = float(m.group(1))
-    except Exception:
-        raise ValueError("human_to_bytes() can't interpret following number: %s (original input string: %s)" % (m.group(1), number))
-
-    unit = m.group(2)
-    if unit is None:
-        unit = default_unit
-
-    if unit is None:
-        ''' No unit given, returning raw number '''
-        return int(round(num))
-    range_key = unit[0].upper()
-    try:
-        limit = SIZE_RANGES[range_key]
-    except Exception:
-        raise ValueError("human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s" % (number, unit, ", ".join(SIZE_RANGES.keys())))
-
-    # default value
-    unit_class = 'B'
-    unit_class_name = 'byte'
-    # handling bits case
-    if isbits:
-        unit_class = 'b'
-        unit_class_name = 'bit'
-    # check unit value if more than one character (KB, MB)
-    if len(unit) > 1:
-        expect_message = 'expect %s%s or %s' % (range_key, unit_class, range_key)
-        if range_key == 'B':
-            expect_message = 'expect %s or %s' % (unit_class, unit_class_name)
-
-        if unit_class_name in unit.lower():
-            pass
-        elif unit[1] != unit_class:
-            raise ValueError("human_to_bytes() failed to convert %s. Value is not a valid string (%s)" % (number, expect_message))
-
-    return int(round(num * limit))
 
 
 def safe_eval(value, locals=None, include_exceptions=False):
@@ -258,7 +130,7 @@ def env_fallback(*args, **kwargs):
     raise AnsibleFallbackNotFound
 
 
-class AnsibleValidator:
+class AnsibleParamsValidator:
     def __init__(self, argument_spec, check_invalid_arguments=True, mutually_exclusive=None,
                  required_together=None, required_one_of=None, required_if=None,
                  add_file_common_args=False, bypass_checks=False):
@@ -308,14 +180,14 @@ class AnsibleValidator:
                 unsupported_parameters.add(k)
 
         # TODO: FIXME
-        #if unsupported_parameters:
-        #    msg = "Unsupported parameters for (%s) module: %s" % (self._name, ', '.join(sorted(list(unsupported_parameters))))
-        #    if self._options_context:
-        #        msg += " found in %s." % " -> ".join(self._options_context)
-        #    msg += " Supported parameters include: %s" % (', '.join(sorted(spec.keys())))
-        #    self.fail_json(msg=msg)
-        #if self.check_mode and not self.supports_check_mode:
-        #    self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
+        # if unsupported_parameters:
+        #     msg = "Unsupported parameters for (%s) module: %s" % (self._name, ', '.join(sorted(list(unsupported_parameters))))
+        #     if self._options_context:
+        #         msg += " found in %s." % " -> ".join(self._options_context)
+        #     msg += " Supported parameters include: %s" % (', '.join(sorted(spec.keys())))
+        #     self.fail_json(msg=msg)
+        # if self.check_mode and not self.supports_check_mode:
+        #     self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
 
         # check exclusive early
         if not self.bypass_checks:
@@ -760,7 +632,7 @@ class AnsibleValidator:
 
     @staticmethod
     def _type_path(value):
-        value = AnsibleValidator._type_str(value)
+        value = AnsibleParamsValidator._type_str(value)
         return os.path.expanduser(os.path.expandvars(value))
 
     @staticmethod

@@ -255,7 +255,6 @@ xmlstring:
 '''
 
 import copy
-import json
 import os
 import re
 import traceback
@@ -270,7 +269,8 @@ try:
 except ImportError:
     HAS_LXML = False
 
-from ansible.module_utils.basic import AnsibleModule, json_dict_bytes_to_unicode
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.json import json, json_dict_bytes_to_unicode
 from ansible.module_utils.six import iteritems, string_types
 from ansible.module_utils._text import to_bytes, to_native
 

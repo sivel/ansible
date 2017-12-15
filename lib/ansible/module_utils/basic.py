@@ -2,18 +2,6 @@
 # Copyright (c), Toshio Kuratomi <tkuratomi@ansible.com> 2016
 # Simplified BSD License (see licenses/simplified_bsd.txt or https://opensource.org/licenses/BSD-2-Clause)
 
-SIZE_RANGES = {
-    'Y': 1 << 80,
-    'Z': 1 << 70,
-    'E': 1 << 60,
-    'P': 1 << 50,
-    'T': 1 << 40,
-    'G': 1 << 30,
-    'M': 1 << 20,
-    'K': 1 << 10,
-    'B': 1,
-}
-
 FILE_ATTRIBUTES = {
     'A': 'noatime',
     'a': 'append',
@@ -47,7 +35,6 @@ import re
 import shlex
 import subprocess
 import sys
-import types
 import time
 import select
 import shutil
@@ -61,7 +48,7 @@ import errno
 import datetime
 from collections import deque
 from collections import Mapping, MutableMapping, Sequence, MutableSequence, Set, MutableSet
-from itertools import chain, repeat
+from itertools import chain
 
 try:
     import syslog
@@ -90,32 +77,11 @@ NoneType = type(None)
 try:
     from collections.abc import KeysView
     SEQUENCETYPE = (Sequence, frozenset, KeysView)
-except:
+except ImportError:
     SEQUENCETYPE = (Sequence, frozenset)
 
-try:
-    import json
-    # Detect the python-json library which is incompatible
-    # Look for simplejson if that's the case
-    try:
-        if not isinstance(json.loads, types.FunctionType) or not isinstance(json.dumps, types.FunctionType):
-            raise ImportError
-    except AttributeError:
-        raise ImportError
-except ImportError:
-    try:
-        import simplejson as json
-    except ImportError:
-        print('\n{"msg": "Error: ansible requires the stdlib json or simplejson module, neither was found!", "failed": true}')
-        sys.exit(1)
-    except SyntaxError:
-        print('\n{"msg": "SyntaxError: probably due to installed simplejson being for a different python version", "failed": true}')
-        sys.exit(1)
-    else:
-        sj_version = json.__version__.split('.')
-        if sj_version < ['1', '6']:
-            # Version 1.5 released 2007-01-18 does not have the encoding parameter which we need
-            print('\n{"msg": "Error: Ansible requires the stdlib json or simplejson >= 1.6.  Neither was found!", "failed": true}')
+from ansible.module_utils.common.json import json, json_dict_unicode_to_bytes, jsonify
+
 
 AVAILABLE_HASH_ALGORITHMS = dict()
 try:
@@ -140,19 +106,19 @@ except ImportError:
     except ImportError:
         pass
 
-from ansible.module_utils.pycompat24 import get_exception, literal_eval
+from ansible.module_utils.pycompat24 import literal_eval
 from ansible.module_utils.six import (
     PY2,
     PY3,
     b,
     binary_type,
     integer_types,
-    iteritems,
     string_types,
     text_type,
 )
 from ansible.module_utils.six.moves import map, reduce, shlex_quote
 from ansible.module_utils._text import to_native, to_bytes, to_text
+from ansible.module_utils.text.format import bytes_to_human, human_to_bytes
 from ansible.module_utils.parsing.convert_bool import boolean
 
 
@@ -228,7 +194,7 @@ def get_distribution():
                     distribution = 'Amazon'
                 else:
                     distribution = 'OtherLinux'
-        except:
+        except Exception:
             # FIXME: MethodMissing, I assume?
             distribution = platform.dist()[0].capitalize()
     else:
@@ -243,7 +209,7 @@ def get_distribution_version():
             distribution_version = platform.linux_distribution()[1]
             if not distribution_version and os.path.isfile('/etc/system-release'):
                 distribution_version = platform.linux_distribution(supported_dists=['system'])[1]
-        except:
+        except Exception:
             # FIXME: MethodMissing, I assume?
             distribution_version = platform.dist()[1]
     else:
@@ -294,45 +260,6 @@ def load_platform_subclass(cls, *args, **kwargs):
         subclass = cls
 
     return super(cls, subclass).__new__(subclass)
-
-
-def json_dict_unicode_to_bytes(d, encoding='utf-8', errors='surrogate_or_strict'):
-    ''' Recursively convert dict keys and values to byte str
-
-        Specialized for json return because this only handles, lists, tuples,
-        and dict container types (the containers that the json module returns)
-    '''
-
-    if isinstance(d, text_type):
-        return to_bytes(d, encoding=encoding, errors=errors)
-    elif isinstance(d, dict):
-        return dict(map(json_dict_unicode_to_bytes, iteritems(d), repeat(encoding), repeat(errors)))
-    elif isinstance(d, list):
-        return list(map(json_dict_unicode_to_bytes, d, repeat(encoding), repeat(errors)))
-    elif isinstance(d, tuple):
-        return tuple(map(json_dict_unicode_to_bytes, d, repeat(encoding), repeat(errors)))
-    else:
-        return d
-
-
-def json_dict_bytes_to_unicode(d, encoding='utf-8', errors='surrogate_or_strict'):
-    ''' Recursively convert dict keys and values to byte str
-
-        Specialized for json return because this only handles, lists, tuples,
-        and dict container types (the containers that the json module returns)
-    '''
-
-    if isinstance(d, binary_type):
-        # Warning, can traceback
-        return to_text(d, encoding=encoding, errors=errors)
-    elif isinstance(d, dict):
-        return dict(map(json_dict_bytes_to_unicode, iteritems(d), repeat(encoding), repeat(errors)))
-    elif isinstance(d, list):
-        return list(map(json_dict_bytes_to_unicode, d, repeat(encoding), repeat(errors)))
-    elif isinstance(d, tuple):
-        return tuple(map(json_dict_bytes_to_unicode, d, repeat(encoding), repeat(errors)))
-    else:
-        return d
 
 
 def _remove_values_conditions(value, no_log_strings, deferred_removals):
@@ -518,74 +445,6 @@ def heuristic_log_sanitize(data, no_log_values=None):
     return output
 
 
-def bytes_to_human(size, isbits=False, unit=None):
-
-    base = 'Bytes'
-    if isbits:
-        base = 'bits'
-    suffix = ''
-
-    for suffix, limit in sorted(iteritems(SIZE_RANGES), key=lambda item: -item[1]):
-        if (unit is None and size >= limit) or unit is not None and unit.upper() == suffix[0]:
-            break
-
-    if limit != 1:
-        suffix += base[0]
-    else:
-        suffix = base
-
-    return '%.2f %s' % (float(size) / limit, suffix)
-
-
-def human_to_bytes(number, default_unit=None, isbits=False):
-
-    '''
-    Convert number in string format into bytes (ex: '2K' => 2048) or using unit argument
-    ex:
-      human_to_bytes('10M') <=> human_to_bytes(10, 'M')
-    '''
-    m = re.search(r'^\s*(\d*\.?\d*)\s*([A-Za-z]+)?', str(number), flags=re.IGNORECASE)
-    if m is None:
-        raise ValueError("human_to_bytes() can't interpret following string: %s" % str(number))
-    try:
-        num = float(m.group(1))
-    except:
-        raise ValueError("human_to_bytes() can't interpret following number: %s (original input string: %s)" % (m.group(1), number))
-
-    unit = m.group(2)
-    if unit is None:
-        unit = default_unit
-
-    if unit is None:
-        ''' No unit given, returning raw number '''
-        return int(round(num))
-    range_key = unit[0].upper()
-    try:
-        limit = SIZE_RANGES[range_key]
-    except:
-        raise ValueError("human_to_bytes() failed to convert %s (unit = %s). The suffix must be one of %s" % (number, unit, ", ".join(SIZE_RANGES.keys())))
-
-    # default value
-    unit_class = 'B'
-    unit_class_name = 'byte'
-    # handling bits case
-    if isbits:
-        unit_class = 'b'
-        unit_class_name = 'bit'
-    # check unit value if more than one character (KB, MB)
-    if len(unit) > 1:
-        expect_message = 'expect %s%s or %s' % (range_key, unit_class, range_key)
-        if range_key == 'B':
-            expect_message = 'expect %s or %s' % (unit_class, unit_class_name)
-
-        if unit_class_name in unit.lower():
-            pass
-        elif unit[1] != unit_class:
-            raise ValueError("human_to_bytes() failed to convert %s. Value is not a valid string (%s)" % (number, expect_message))
-
-    return int(round(num * limit))
-
-
 def is_executable(path):
     '''is the given path executable?
 
@@ -672,31 +531,7 @@ def get_flags_from_attributes(attributes):
     return ''.join(flags)
 
 
-def _json_encode_fallback(obj):
-    if isinstance(obj, Set):
-        return list(obj)
-    elif isinstance(obj, datetime.datetime):
-        return obj.isoformat()
-    raise TypeError("Cannot json serialize %s" % to_native(obj))
-
-
-def jsonify(data, **kwargs):
-    for encoding in ("utf-8", "latin-1"):
-        try:
-            return json.dumps(data, encoding=encoding, default=_json_encode_fallback, **kwargs)
-        # Old systems using old simplejson module does not support encoding keyword.
-        except TypeError:
-            try:
-                new_data = json_dict_bytes_to_unicode(data, encoding=encoding)
-            except UnicodeDecodeError:
-                continue
-            return json.dumps(new_data, default=_json_encode_fallback, **kwargs)
-        except UnicodeDecodeError:
-            continue
-    raise UnicodeError('Invalid unicode encoding encountered')
-
-
-from ansible.module_utils.validator import AnsibleValidator
+from ansible.module_utils.params.common import AnsibleParamsValidator
 class AnsibleModule(object):
     def __init__(self, argument_spec, bypass_checks=False, no_log=False,
                  check_invalid_arguments=None, mutually_exclusive=None, required_together=None,
@@ -713,7 +548,6 @@ class AnsibleModule(object):
         self.argument_spec = argument_spec
         self.supports_check_mode = supports_check_mode
         self.check_mode = False
-        #self.bypass_checks = bypass_checks
         self.no_log = no_log
         self.cleanup_files = []
         self._debug = False
@@ -730,10 +564,10 @@ class AnsibleModule(object):
 
         self._syslog_facility = 'LOG_USER'
 
-        validator = AnsibleValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
-                                     mutually_exclusive=mutually_exclusive, required_together=required_together,
-                                     required_one_of=required_one_of, required_if=required_if,
-                                     add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
+        validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
+                                           mutually_exclusive=mutually_exclusive, required_together=required_together,
+                                           required_one_of=required_one_of, required_if=required_if,
+                                           add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
         # Save parameter values that should never be logged
         self.no_log_values = validator.no_log_values
 
@@ -926,7 +760,7 @@ class AnsibleModule(object):
             f = open('/proc/mounts', 'r')
             mount_data = f.readlines()
             f.close()
-        except:
+        except Exception:
             return (False, None)
         path_mount_point = self.find_mount_point(path)
         for line in mount_data:
@@ -1180,7 +1014,7 @@ class AnsibleModule(object):
                     output['attr_flags'] = res[1].replace('-', '').strip()
                     output['version'] = res[0].strip()
                     output['attributes'] = format_attributes(output['attr_flags'])
-            except:
+            except Exception:
                 pass
         return output
 
@@ -1513,7 +1347,8 @@ class AnsibleModule(object):
         log_args = dict()
 
         for param in self.params:
-            canon = param #  self.aliases.get(param, param)
+            # TODO: Get this working
+            canon = param  # self.aliases.get(param, param)
             arg_opts = self.argument_spec.get(canon, {})
             no_log = arg_opts.get('no_log', False)
 
@@ -1546,7 +1381,7 @@ class AnsibleModule(object):
             if not os.access(cwd, os.F_OK | os.R_OK):
                 raise Exception()
             return cwd
-        except:
+        except Exception:
             # we don't have access to the cwd, probably because of sudo.
             # Try and move to a neutral location to prevent errors
             for cwd in [os.path.expandvars('$HOME'), tempfile.gettempdir()]:
@@ -1554,7 +1389,7 @@ class AnsibleModule(object):
                     if os.access(cwd, os.F_OK | os.R_OK):
                         os.chdir(cwd)
                         return cwd
-                except:
+                except Exception:
                     pass
         # we won't error here, as it may *not* be a problem,
         # and we don't want to break modules unnecessarily

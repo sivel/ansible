@@ -36,7 +36,7 @@ from socket import inet_aton, inet_ntoa
 
 from ansible.module_utils.six import iteritems, string_types
 from ansible.module_utils.six.moves import zip
-from ansible.module_utils.basic import AnsibleFallbackNotFound
+from ansible.module_utils.params.common import AnsibleFallbackNotFound
 
 try:
     from jinja2 import Environment, StrictUndefined

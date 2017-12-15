@@ -681,7 +681,7 @@ import os
 import re
 import shlex
 
-from ansible.module_utils.basic import human_to_bytes
+from ansible.module_utils.text.format import human_to_bytes
 from ansible.module_utils.docker_common import HAS_DOCKER_PY_2, AnsibleDockerClient, DockerBaseClass
 from ansible.module_utils.six import string_types
 

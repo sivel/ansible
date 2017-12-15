@@ -142,7 +142,7 @@ network_info:
 """
 
 
-from ansible.module_utils.basic import json
+from ansible.module_utils.common.json import json
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import open_url
 

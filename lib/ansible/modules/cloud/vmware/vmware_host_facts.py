@@ -45,7 +45,8 @@ ansible_facts:
   type: dict
 '''
 
-from ansible.module_utils.basic import AnsibleModule, bytes_to_human
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.text.format import bytes_to_human
 from ansible.module_utils.vmware import connect_to_api, vmware_argument_spec, find_obj
 
 try:

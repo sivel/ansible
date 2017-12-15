@@ -26,7 +26,7 @@ except ImportError:
     bigsuds_found = False
 
 
-from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.params.common import env_fallback
 
 
 def f5_argument_spec():

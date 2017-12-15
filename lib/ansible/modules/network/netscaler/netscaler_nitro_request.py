@@ -292,7 +292,7 @@ nitro_auth_token:
 
 
 from ansible.module_utils.urls import fetch_url
-from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.params.common import env_fallback
 from ansible.module_utils.basic import AnsibleModule
 import codecs
 

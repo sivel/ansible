@@ -276,7 +276,8 @@ import mimetypes
 import traceback
 from ansible.module_utils.six.moves.urllib.parse import urlparse
 from ssl import SSLError
-from ansible.module_utils.basic import AnsibleModule, to_text, to_native
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils._text import to_text, to_native
 from ansible.module_utils.ec2 import ec2_argument_spec, camel_dict_to_snake_dict, get_aws_connection_info, boto3_conn, HAS_BOTO3
 
 try:

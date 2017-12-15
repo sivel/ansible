@@ -149,7 +149,7 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 # import pydevd
 # pydevd.settrace('localhost', port=60374, stdoutToServer=True, stderrToServer=True)
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import get_exception
+from ansible.module_utils.pycompat24 import get_exception
 
 try:
     import pan.xapi

@@ -28,7 +28,7 @@
 import traceback
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.params.common import env_fallback
 from ansible.module_utils.network.common.parsing import Cli
 from ansible.module_utils._text import to_native
 from ansible.module_utils.six import iteritems

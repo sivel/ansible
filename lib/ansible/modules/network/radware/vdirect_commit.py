@@ -145,7 +145,7 @@ result:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.params.common import env_fallback
 
 try:
     from vdirect_client import rest_client

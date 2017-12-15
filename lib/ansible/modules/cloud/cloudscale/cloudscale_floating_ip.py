@@ -158,7 +158,8 @@ try:
 except ImportError:
     HAS_IPADDRESS = False
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.params.common import env_fallback
 from ansible.module_utils.cloudscale import AnsibleCloudscaleBase, cloudscale_argument_spec
 
 
