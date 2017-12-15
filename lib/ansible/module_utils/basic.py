@@ -80,9 +80,6 @@ try:
 except ImportError:
     SEQUENCETYPE = (Sequence, frozenset)
 
-from ansible.module_utils.common.json import json, json_dict_unicode_to_bytes, jsonify
-
-
 AVAILABLE_HASH_ALGORITHMS = dict()
 try:
     import hashlib
@@ -120,6 +117,8 @@ from ansible.module_utils.six.moves import map, reduce, shlex_quote
 from ansible.module_utils._text import to_native, to_bytes, to_text
 from ansible.module_utils.text.format import bytes_to_human, human_to_bytes
 from ansible.module_utils.parsing.convert_bool import boolean
+from ansible.module_utils.common.json import json, json_dict_unicode_to_bytes, jsonify
+from ansible.module_utils.params.common import AnsibleParamsValidator, AnsibleUnsupportedParams
 
 
 PASSWORD_MATCH = re.compile(r'^(?:.+[-_\s])?pass(?:[-_\s]?(?:word|phrase|wrd|wd)?)(?:[-_\s].+)?$', re.I)
@@ -531,7 +530,6 @@ def get_flags_from_attributes(attributes):
     return ''.join(flags)
 
 
-from ansible.module_utils.params.common import AnsibleParamsValidator
 class AnsibleModule(object):
     def __init__(self, argument_spec, bypass_checks=False, no_log=False,
                  check_invalid_arguments=None, mutually_exclusive=None, required_together=None,
@@ -564,18 +562,25 @@ class AnsibleModule(object):
 
         self._syslog_facility = 'LOG_USER'
 
-        validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
-                                           mutually_exclusive=mutually_exclusive, required_together=required_together,
-                                           required_one_of=required_one_of, required_if=required_if,
-                                           add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
+        params = self._load_params()
+        self._set_attrs_from_params()
+
+        if self.check_mode and not self.supports_check_mode:
+            self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
+
+        self.validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
+                                                mutually_exclusive=mutually_exclusive, required_together=required_together,
+                                                required_one_of=required_one_of, required_if=required_if,
+                                                add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
         # Save parameter values that should never be logged
-        self.no_log_values = validator.no_log_values
+        self.no_log_values = self.validator.no_log_values
 
         try:
-            validator(self._load_params())
+            self.validator(params)
+        except AnsibleUnsupportedParams as e:
+            self.fail_json(msg='%s: %s' % (self._name, to_native(e)))
         except Exception as e:
             self.fail_json(msg=to_native(e))
-        self._set_attrs_from_args()
 
         # check the locale as set by the current environment, and reset to
         # a known valid (LANG=C) if it's an invalid/unavailable locale
@@ -1239,7 +1244,7 @@ class AnsibleModule(object):
             self.fail_json(msg="An unknown error was encountered while attempting to validate the locale: %s" %
                            to_native(e), exception=traceback.format_exc())
 
-    def _set_attrs_from_args(self):  # , check_invalid_arguments, spec=None, param=None, legal_inputs=None):
+    def _set_attrs_from_params(self):
         for (k, v) in list(self.params.items()):
 
             if k == '_ansible_check_mode' and v:
@@ -1347,8 +1352,8 @@ class AnsibleModule(object):
         log_args = dict()
 
         for param in self.params:
-            # TODO: Get this working
-            canon = param  # self.aliases.get(param, param)
+            # TODO: should this be how the validator exposes aliases?
+            canon = self.validator.aliases.get(param, param)
             arg_opts = self.argument_spec.get(canon, {})
             no_log = arg_opts.get('no_log', False)
 

@@ -68,6 +68,10 @@ class AnsibleFallbackNotFound(Exception):
     pass
 
 
+class AnsibleUnsupportedParams(Exception):
+    pass
+
+
 def return_values(obj):
     """ Return native stringified values from datastructures.
 
@@ -145,9 +149,6 @@ class AnsibleParamsValidator:
         self.params = None
         self.no_log_values = set()
         self.aliases = {}
-        # self._legal_inputs = ['_ansible_check_mode', '_ansible_no_log', '_ansible_debug', '_ansible_diff', '_ansible_verbosity',
-        #                       '_ansible_selinux_special_fs', '_ansible_module_name', '_ansible_version', '_ansible_syslog_facility',
-        #                       '_ansible_socket', '_ansible_shell_executable']
         self._legal_inputs = []
 
         self._options_context = []
@@ -179,15 +180,12 @@ class AnsibleParamsValidator:
             if check_invalid_arguments and k not in legal_inputs:
                 unsupported_parameters.add(k)
 
-        # TODO: FIXME
-        # if unsupported_parameters:
-        #     msg = "Unsupported parameters for (%s) module: %s" % (self._name, ', '.join(sorted(list(unsupported_parameters))))
-        #     if self._options_context:
-        #         msg += " found in %s." % " -> ".join(self._options_context)
-        #     msg += " Supported parameters include: %s" % (', '.join(sorted(spec.keys())))
-        #     self.fail_json(msg=msg)
-        # if self.check_mode and not self.supports_check_mode:
-        #     self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
+        if unsupported_parameters:
+            msg = "Unsupported parameters: '%s'" % "', '".join(sorted(list(unsupported_parameters)))
+            if self._options_context:
+                msg += " found in %s." % " -> ".join(self._options_context)
+            msg += ". Supported parameters include: %s" % (', '.join(sorted(spec.keys())))
+            raise AnsibleUnsupportedParams(msg)
 
         # check exclusive early
         if not self.bypass_checks:
@@ -310,7 +308,6 @@ class AnsibleParamsValidator:
 
     def _handle_aliases(self, spec=None, param=None):
         # this uses exceptions as it happens before we can safely call fail_json
-        # TODO: FIX ALIASES HERE
         aliases_results = {}  # alias:canon
         if param is None:
             param = self.params
