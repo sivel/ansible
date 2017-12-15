@@ -568,10 +568,15 @@ class AnsibleModule(object):
         if self.check_mode and not self.supports_check_mode:
             self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
 
-        self.validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
-                                                mutually_exclusive=mutually_exclusive, required_together=required_together,
-                                                required_one_of=required_one_of, required_if=required_if,
-                                                add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
+        if isinstance(argument_spec, dict):
+            self.validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
+                                                    mutually_exclusive=mutually_exclusive, required_together=required_together,
+                                                    required_one_of=required_one_of, required_if=required_if,
+                                                    add_file_common_args=add_file_common_args, bypass_checks=bypass_checks)
+        elif callable(argument_spec):
+            self.validator = argument_spec
+        else:
+            self.fail_json(msg='argument_spec is an invalid type (%s) must be a dict or a callable' % type(argument_spec))
         # Save parameter values that should never be logged
         self.no_log_values = self.validator.no_log_values
 
