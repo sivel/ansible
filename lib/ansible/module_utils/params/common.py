@@ -643,6 +643,8 @@ class AnsibleParamsValidator:
                 return jsonify(value)
         raise TypeError('%s cannot be converted to a json string' % type(value))
 
+    _type_json = _type_jsonarg
+
     @staticmethod
     def _type_raw(value):
         return value

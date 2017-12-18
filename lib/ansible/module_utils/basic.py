@@ -35,6 +35,7 @@ import re
 import shlex
 import subprocess
 import sys
+import types  # noqa: F401
 import time
 import select
 import shutil
@@ -48,7 +49,7 @@ import errno
 import datetime
 from collections import deque
 from collections import Mapping, MutableMapping, Sequence, MutableSequence, Set, MutableSet
-from itertools import chain
+from itertools import chain, repeat  # noqa: F401
 
 try:
     import syslog
@@ -103,22 +104,30 @@ except ImportError:
     except ImportError:
         pass
 
-from ansible.module_utils.pycompat24 import literal_eval
-from ansible.module_utils.six import (
+from ansible.module_utils.pycompat24 import get_exception, literal_eval  # noqa: F401
+from ansible.module_utils.six import (  # noqa: F401
     PY2,
     PY3,
     b,
     binary_type,
     integer_types,
+    iteritems,
     string_types,
     text_type,
 )
 from ansible.module_utils.six.moves import map, reduce, shlex_quote
 from ansible.module_utils._text import to_native, to_bytes, to_text
-from ansible.module_utils.text.format import bytes_to_human, human_to_bytes
-from ansible.module_utils.parsing.convert_bool import boolean
-from ansible.module_utils.common.json import json, json_dict_unicode_to_bytes, jsonify
-from ansible.module_utils.params.common import AnsibleParamsValidator, AnsibleUnsupportedParams
+from ansible.module_utils.text.format import SIZE_RANGES, _lenient_lowercase, bytes_to_human, human_to_bytes   # noqa: F401
+from ansible.module_utils.parsing.convert_bool import BOOLEANS, BOOLEANS_FALSE, BOOLEANS_TRUE, boolean  # noqa: F401
+from ansible.module_utils.common.json import _json_encode_fallback, json, json_dict_bytes_to_unicode, json_dict_unicode_to_bytes, jsonify  # noqa: F401
+from ansible.module_utils.params.common import (  # noqa: F401
+    FILE_COMMON_ARGUMENTS,
+    AnsibleFallbackNotFound,
+    AnsibleParamsValidator,
+    AnsibleUnsupportedParams,
+    env_fallback,
+    return_values,
+)
 
 
 PASSWORD_MATCH = re.compile(r'^(?:.+[-_\s])?pass(?:[-_\s]?(?:word|phrase|wrd|wd)?)(?:[-_\s].+)?$', re.I)
@@ -2088,6 +2097,19 @@ class AnsibleModule(object):
 
     # In 2.0, moved from inside the module to the toplevel
     is_executable = is_executable
+
+    # In 2.6, moved to ansible.module_utils.params.common.AnsibleParamsValidator
+    _check_type_str = AnsibleParamsValidator._type_str
+    _check_type_list = AnsibleParamsValidator._type_list
+    _check_type_dict = AnsibleParamsValidator._type_dict
+    _check_type_bool = AnsibleParamsValidator._type_bool
+    _check_type_int = AnsibleParamsValidator._type_int
+    _check_type_float = AnsibleParamsValidator._type_float
+    _check_type_path = AnsibleParamsValidator._type_path
+    _check_type_jsonarg = AnsibleParamsValidator._type_jsonarg
+    _check_type_raw = AnsibleParamsValidator._type_raw
+    _check_type_bytes = AnsibleParamsValidator._type_bytes
+    _check_type_bits = AnsibleParamsValidator._type_bits
 
 
 def get_module_path():
