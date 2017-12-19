@@ -135,7 +135,7 @@ def env_fallback(*args, **kwargs):
 
 
 class AnsibleParamsValidator:
-    def __init__(self, argument_spec, check_invalid_arguments=True, mutually_exclusive=None,
+    def __init__(self, argument_spec, check_invalid_arguments=None, mutually_exclusive=None,
                  required_together=None, required_one_of=None, required_if=None,
                  add_file_common_args=False, bypass_checks=False):
         self.argument_spec = argument_spec

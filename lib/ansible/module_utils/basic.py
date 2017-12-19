@@ -577,6 +577,13 @@ class AnsibleModule(object):
         if self.check_mode and not self.supports_check_mode:
             self.exit_json(skipped=True, msg="remote module (%s) does not support check mode" % self._name)
 
+        # Check whether code set this explicitly for deprecation purposes
+        if check_invalid_arguments is None:
+            check_invalid_arguments = True
+            module_set_check_invalid_arguments = False
+        else:
+            module_set_check_invalid_arguments = True
+
         if isinstance(argument_spec, dict):
             self.validator = AnsibleParamsValidator(argument_spec, check_invalid_arguments=check_invalid_arguments,
                                                     mutually_exclusive=mutually_exclusive, required_together=required_together,
