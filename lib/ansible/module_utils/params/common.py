@@ -9,9 +9,6 @@ import sys
 
 from collections import Mapping, Sequence
 
-# Python2 & 3 way to get NoneType
-NoneType = type(None)
-
 # Note: When getting Sequence from collections, it matches with strings.  If
 # this matters, make sure to check for strings before checking for sequencetype
 try:
@@ -23,6 +20,7 @@ except ImportError:
 
 from ansible.module_utils.common.json import json, jsonify
 from ansible.module_utils.pycompat24 import literal_eval
+from ansible.module_utils.pycompat27 import NoneType
 from ansible.module_utils.parsing.convert_bool import BOOLEANS_FALSE, BOOLEANS_TRUE, boolean
 from ansible.module_utils.six import (
     binary_type,

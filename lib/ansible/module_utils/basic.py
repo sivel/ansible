@@ -70,9 +70,6 @@ try:
 except ImportError:
     pass
 
-# Python2 & 3 way to get NoneType
-NoneType = type(None)
-
 # Note: When getting Sequence from collections, it matches with strings.  If
 # this matters, make sure to check for strings before checking for sequencetype
 try:
@@ -128,7 +125,7 @@ from ansible.module_utils.params.common import (  # noqa: F401
     env_fallback,
     return_values,
 )
-
+from ansible.module_utils.pycompat27 import NoneType
 
 PASSWORD_MATCH = re.compile(r'^(?:.+[-_\s])?pass(?:[-_\s]?(?:word|phrase|wrd|wd)?)(?:[-_\s].+)?$', re.I)
 
