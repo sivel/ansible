@@ -78,29 +78,6 @@ try:
 except ImportError:
     SEQUENCETYPE = (Sequence, frozenset)
 
-AVAILABLE_HASH_ALGORITHMS = dict()
-try:
-    import hashlib
-
-    # python 2.7.9+ and 2.7.0+
-    for attribute in ('available_algorithms', 'algorithms'):
-        algorithms = getattr(hashlib, attribute, None)
-        if algorithms:
-            break
-    if algorithms is None:
-        # python 2.5+
-        algorithms = ('md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512')
-    for algorithm in algorithms:
-        AVAILABLE_HASH_ALGORITHMS[algorithm] = getattr(hashlib, algorithm)
-except ImportError:
-    import sha
-    AVAILABLE_HASH_ALGORITHMS = {'sha1': sha.sha}
-    try:
-        import md5
-        AVAILABLE_HASH_ALGORITHMS['md5'] = md5.md5
-    except ImportError:
-        pass
-
 from ansible.module_utils.pycompat24 import get_exception, literal_eval  # noqa: F401
 from ansible.module_utils.six import (  # noqa: F401
     PY2,
@@ -116,6 +93,7 @@ from ansible.module_utils.six.moves import map, reduce, shlex_quote
 from ansible.module_utils._text import to_native, to_bytes, to_text
 from ansible.module_utils.text.format import SIZE_RANGES, _lenient_lowercase, bytes_to_human, human_to_bytes   # noqa: F401
 from ansible.module_utils.parsing.convert_bool import BOOLEANS, BOOLEANS_FALSE, BOOLEANS_TRUE, boolean  # noqa: F401
+from ansible.module_utils.common import hashing
 from ansible.module_utils.common.json import _json_encode_fallback, json, json_dict_bytes_to_unicode, json_dict_unicode_to_bytes, jsonify  # noqa: F401
 from ansible.module_utils.params.common import (  # noqa: F401
     FILE_COMMON_ARGUMENTS,
@@ -1548,29 +1526,10 @@ class AnsibleModule(object):
 
     def digest_from_file(self, filename, algorithm):
         ''' Return hex digest of local file for a digest_method specified by name, or None if file is not present. '''
-        if not os.path.exists(filename):
-            return None
-        if os.path.isdir(filename):
-            self.fail_json(msg="attempted to take checksum of directory: %s" % filename)
-
-        # preserve old behaviour where the third parameter was a hash algorithm object
-        if hasattr(algorithm, 'hexdigest'):
-            digest_method = algorithm
-        else:
-            try:
-                digest_method = AVAILABLE_HASH_ALGORITHMS[algorithm]()
-            except KeyError:
-                self.fail_json(msg="Could not hash file '%s' with algorithm '%s'. Available algorithms: %s" %
-                                   (filename, algorithm, ', '.join(AVAILABLE_HASH_ALGORITHMS)))
-
-        blocksize = 64 * 1024
-        infile = open(os.path.realpath(filename), 'rb')
-        block = infile.read(blocksize)
-        while block:
-            digest_method.update(block)
-            block = infile.read(blocksize)
-        infile.close()
-        return digest_method.hexdigest()
+        try:
+            hashing.digest_from_file(filename, algorithm)
+        except (TypeError, ValueError) as e:
+            self.fail_json(msg=to_native(e))
 
     def md5(self, filename):
         ''' Return MD5 hex digest of local file using digest_from_file().
@@ -1583,7 +1542,7 @@ class AnsibleModule(object):
 
         Most uses of this function can use the module.sha1 function instead.
         '''
-        if 'md5' not in AVAILABLE_HASH_ALGORITHMS:
+        if 'md5' not in hashing.AVAILABLE_HASH_ALGORITHMS:
             raise ValueError('MD5 not available.  Possibly running in FIPS mode')
         return self.digest_from_file(filename, 'md5')
 
