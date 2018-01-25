@@ -811,6 +811,9 @@ class ActionBase(with_metaclass(ABCMeta, object)):
                 remove_async_dir = len(self._task.environment)
                 self._task.environment.append({"ANSIBLE_ASYNC_DIR": async_dir})
 
+        if self._task.remote_modules:
+            self._connection.always_pipeline_modules = True
+
         # FUTURE: refactor this along with module build process to better encapsulate "smart wrapper" functionality
         (module_style, shebang, module_data, module_path) = self._configure_module(module_name=module_name, module_args=module_args, task_vars=task_vars)
         display.vvv("Using module file %s" % module_path)
