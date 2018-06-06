@@ -19,10 +19,8 @@
 
 from __future__ import print_function
 
-import abc
 import argparse
 import ast
-import json
 import errno
 import os
 import re
@@ -31,24 +29,27 @@ import sys
 import tempfile
 import traceback
 
-from collections import OrderedDict
-from contextlib import contextmanager
 from distutils.version import StrictVersion
 from fnmatch import fnmatch
 
 from ansible import __version__ as ansible_version
 from ansible.executor.module_common import REPLACER_WINDOWS
 from ansible.plugins.loader import fragment_loader
-from ansible.utils.plugin_docs import BLACKLIST, add_fragments, get_docstring
+from ansible.utils.plugin_docs import BLACKLIST, add_fragments
 
 from module_args import AnsibleModuleImportError, get_argument_spec
+
+from reporter import Reporter
 
 from schema import doc_schema, metadata_1_1_schema, return_schema
 
 from utils import CaptureStd, NoArgsAnsibleModule, compare_unordered_lists, is_empty, parse_yaml
+
+from validator import FileValidator, Validator
+
 from voluptuous.humanize import humanize_error
 
-from ansible.module_utils.six import PY3, with_metaclass
+from ansible.module_utils.six import PY3
 from ansible.module_utils.basic import FILE_COMMON_ARGUMENTS
 
 if PY3:
@@ -82,139 +83,7 @@ BLACKLIST_IMPORTS = {
 }
 
 
-class ReporterEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, Exception):
-            return str(o)
-
-        return json.JSONEncoder.default(self, o)
-
-
-class Reporter(object):
-    def __init__(self):
-        self.files = OrderedDict()
-
-    def _ensure_default_entry(self, path):
-        try:
-            self.files[path]
-        except KeyError:
-            self.files[path] = {
-                'errors': [],
-                'warnings': [],
-                'traces': [],
-                'warning_traces': []
-            }
-
-    def _log(self, path, code, msg, level='error', line=0, column=0):
-        self._ensure_default_entry(path)
-        lvl_dct = self.files[path]['%ss' % level]
-        lvl_dct.append({
-            'code': code,
-            'msg': msg,
-            'line': line,
-            'column': column
-        })
-
-    def error(self, *args, **kwargs):
-        self._log(*args, level='error', **kwargs)
-
-    def warning(self, *args, **kwargs):
-        self._log(*args, level='warning', **kwargs)
-
-    def trace(self, path, tracebk):
-        self._ensure_default_entry(path)
-        self.files[path]['traces'].append(tracebk)
-
-    def warning_trace(self, path, tracebk):
-        self._ensure_default_entry(path)
-        self.files[path]['warning_traces'].append(tracebk)
-
-    @staticmethod
-    @contextmanager
-    def _output_handle(output):
-        if output != '-':
-            handle = open(output, 'w+')
-        else:
-            handle = sys.stdout
-
-        yield handle
-
-        handle.flush()
-        handle.close()
-
-    @staticmethod
-    def _filter_out_ok(reports):
-        temp_reports = OrderedDict()
-        for path, report in reports.items():
-            if report['errors'] or report['warnings']:
-                temp_reports[path] = report
-
-        return temp_reports
-
-    def plain(self, warnings=False, output='-'):
-        """Print out the test results in plain format
-
-        output is ignored here for now
-        """
-        ret = []
-
-        for path, report in Reporter._filter_out_ok(self.files).items():
-            traces = report['traces'][:]
-            if warnings and report['warnings']:
-                traces.extend(report['warning_traces'])
-
-            for trace in traces:
-                print('TRACE:')
-                print('\n    '.join(('    %s' % trace).splitlines()))
-            for error in report['errors']:
-                error['path'] = path
-                print('%(path)s:%(line)d:%(column)d: E%(code)d %(msg)s' % error)
-                ret.append(1)
-            if warnings:
-                for warning in report['warnings']:
-                    warning['path'] = path
-                    print('%(path)s:%(line)d:%(column)d: W%(code)d %(msg)s' % warning)
-
-        return 3 if ret else 0
-
-    def json(self, warnings=False, output='-'):
-        """Print out the test results in json format
-
-        warnings is not respected in this output
-        """
-        ret = [len(r['errors']) for _, r in self.files.items()]
-
-        with Reporter._output_handle(output) as handle:
-            print(json.dumps(Reporter._filter_out_ok(self.files), indent=4, cls=ReporterEncoder), file=handle)
-
-        return 3 if sum(ret) else 0
-
-
-class Validator(with_metaclass(abc.ABCMeta, object)):
-    """Validator instances are intended to be run on a single object.  if you
-    are scanning multiple objects for problems, you'll want to have a separate
-    Validator for each one."""
-
-    def __init__(self, reporter=None):
-        self.reporter = reporter
-
-    @abc.abstractproperty
-    def object_name(self):
-        """Name of the object we validated"""
-        pass
-
-    @abc.abstractproperty
-    def object_path(self):
-        """Path of the object we validated"""
-        pass
-
-    @abc.abstractmethod
-    def validate(self):
-        """Run this method to generate the test results"""
-        pass
-
-
-class ModuleValidator(Validator):
+class ModuleValidator(FileValidator):
     BLACKLIST_PATTERNS = ('.git*', '*.pyc', '*.pyo', '.*', '*.md', '*.rst', '*.txt')
     BLACKLIST_FILES = frozenset(('.git', '.gitignore', '.travis.yml',
                                  'shippable.yml',
@@ -230,27 +99,17 @@ class ModuleValidator(Validator):
 
     WHITELIST_FUTURE_IMPORTS = frozenset(('absolute_import', 'division', 'print_function'))
 
-    def __init__(self, path, analyze_arg_spec=False, base_branch=None, git_cache=None, reporter=None):
-        super(ModuleValidator, self).__init__(reporter=reporter or Reporter())
+    DOCUMENTATION_SCHEMA = doc_schema
 
-        self.path = path
-        self.basename = os.path.basename(self.path)
-        self.name, _ = os.path.splitext(self.basename)
+    def __init__(self, path, analyze_arg_spec=False, base_branch=None, git_cache=None, reporter=None):
+        super(ModuleValidator, self).__init__(path, reporter=reporter)
 
         self.analyze_arg_spec = analyze_arg_spec
 
         self.base_branch = base_branch
         self.git_cache = git_cache or GitCache()
 
-        self._python_module_override = False
-
-        with open(path) as f:
-            self.text = f.read()
-        self.length = len(self.text.splitlines())
-        try:
-            self.ast = ast.parse(self.text)
-        except Exception:
-            self.ast = None
+        self._python_file_override = False
 
         if base_branch:
             self.base_module = self._get_base_file()
@@ -269,20 +128,12 @@ class ModuleValidator(Validator):
         except Exception:
             pass
 
-    @property
-    def object_name(self):
-        return self.basename
-
-    @property
-    def object_path(self):
-        return self.path
-
-    def _python_module(self):
-        if self.path.endswith('.py') or self._python_module_override:
+    def _python_file(self):
+        if self.path.endswith('.py') or self._python_file_override:
             return True
         return False
 
-    def _powershell_module(self):
+    def _powershell_file(self):
         if self.path.endswith('.ps1'):
             return True
         return False
@@ -714,67 +565,6 @@ class ModuleValidator(Validator):
                 msg='Missing python documentation file'
             )
 
-    def _get_docs(self):
-        docs = {
-            'DOCUMENTATION': {
-                'value': None,
-                'lineno': 0,
-                'end_lineno': 0,
-            },
-            'EXAMPLES': {
-                'value': None,
-                'lineno': 0,
-                'end_lineno': 0,
-            },
-            'RETURN': {
-                'value': None,
-                'lineno': 0,
-                'end_lineno': 0,
-            },
-            'ANSIBLE_METADATA': {
-                'value': None,
-                'lineno': 0,
-                'end_lineno': 0,
-            }
-        }
-        for child in self.ast.body:
-            if isinstance(child, ast.Assign):
-                for grandchild in child.targets:
-                    if not isinstance(grandchild, ast.Name):
-                        continue
-
-                    if grandchild.id == 'DOCUMENTATION':
-                        docs['DOCUMENTATION']['value'] = child.value.s
-                        docs['DOCUMENTATION']['lineno'] = child.lineno
-                        docs['DOCUMENTATION']['end_lineno'] = (
-                            child.lineno + len(child.value.s.splitlines())
-                        )
-                    elif grandchild.id == 'EXAMPLES':
-                        docs['EXAMPLES']['value'] = child.value.s
-                        docs['EXAMPLES']['lineno'] = child.lineno
-                        docs['EXAMPLES']['end_lineno'] = (
-                            child.lineno + len(child.value.s.splitlines())
-                        )
-                    elif grandchild.id == 'RETURN':
-                        docs['RETURN']['value'] = child.value.s
-                        docs['RETURN']['lineno'] = child.lineno
-                        docs['RETURN']['end_lineno'] = (
-                            child.lineno + len(child.value.s.splitlines())
-                        )
-                    elif grandchild.id == 'ANSIBLE_METADATA':
-                        docs['ANSIBLE_METADATA']['value'] = child.value
-                        docs['ANSIBLE_METADATA']['lineno'] = child.lineno
-                        try:
-                            docs['ANSIBLE_METADATA']['end_lineno'] = (
-                                child.lineno + len(child.value.s.splitlines())
-                            )
-                        except AttributeError:
-                            docs['ANSIBLE_METADATA']['end_lineno'] = (
-                                child.value.values[-1].lineno
-                            )
-
-        return docs
-
     def _validate_docs_schema(self, doc, schema, name, error_code):
         # TODO: Add line/col
         errors = []
@@ -800,80 +590,7 @@ class ModuleValidator(Validator):
             )
 
     def _validate_docs(self):
-        doc_info = self._get_docs()
-        deprecated = False
-        doc = None
-        if not bool(doc_info['DOCUMENTATION']['value']):
-            self.reporter.error(
-                path=self.object_path,
-                code=301,
-                msg='No DOCUMENTATION provided'
-            )
-        else:
-            doc, errors, traces = parse_yaml(
-                doc_info['DOCUMENTATION']['value'],
-                doc_info['DOCUMENTATION']['lineno'],
-                self.name, 'DOCUMENTATION'
-            )
-            for error in errors:
-                self.reporter.error(
-                    path=self.object_path,
-                    code=302,
-                    **error
-                )
-            for trace in traces:
-                self.reporter.trace(
-                    path=self.object_path,
-                    tracebk=trace
-                )
-            if not errors and not traces:
-                with CaptureStd():
-                    try:
-                        get_docstring(self.path, fragment_loader, verbose=True)
-                    except AssertionError:
-                        fragment = doc['extends_documentation_fragment']
-                        self.reporter.error(
-                            path=self.object_path,
-                            code=303,
-                            msg='DOCUMENTATION fragment missing: %s' % fragment
-                        )
-                    except Exception as e:
-                        self.reporter.trace(
-                            path=self.object_path,
-                            tracebk=traceback.format_exc()
-                        )
-                        self.reporter.error(
-                            path=self.object_path,
-                            code=304,
-                            msg='Unknown DOCUMENTATION error, see TRACE: %s' % e
-                        )
-
-                if 'options' in doc and doc['options'] is None:
-                    self.reporter.error(
-                        path=self.object_path,
-                        code=320,
-                        msg='DOCUMENTATION.options must be a dictionary/hash when used',
-                    )
-
-                if self.object_name.startswith('_') and not os.path.islink(self.object_path):
-                    deprecated = True
-                    if 'deprecated' not in doc or not doc.get('deprecated'):
-                        self.reporter.error(
-                            path=self.object_path,
-                            code=318,
-                            msg='Module deprecated, but DOCUMENTATION.deprecated is missing'
-                        )
-
-                if os.path.islink(self.object_path):
-                    # This module has an alias, which we can tell as it's a symlink
-                    # Rather than checking for `module: $filename` we need to check against the true filename
-                    self._validate_docs_schema(doc, doc_schema(os.readlink(self.object_path).split('.')[0]), 'DOCUMENTATION', 305)
-                else:
-                    # This is the normal case
-                    self._validate_docs_schema(doc, doc_schema(self.object_name.split('.')[0]), 'DOCUMENTATION', 305)
-
-                self._check_version_added(doc)
-                self._check_for_new_args(doc)
+        doc_info, doc, deprecated = super(ModuleValidator, self)._validate_docs()
 
         if not bool(doc_info['EXAMPLES']['value']):
             self.reporter.error(
@@ -1199,89 +916,6 @@ class ModuleValidator(Validator):
                     msg='"%s" is listed in DOCUMENTATION.options, but not accepted by the module' % arg
                 )
 
-    def _check_for_new_args(self, doc):
-        if not self.base_branch or self._is_new_module():
-            return
-
-        with CaptureStd():
-            try:
-                existing_doc = get_docstring(self.base_module, fragment_loader, verbose=True)[0]
-                existing_options = existing_doc.get('options', {}) or {}
-            except AssertionError:
-                fragment = doc['extends_documentation_fragment']
-                self.reporter.warning(
-                    path=self.object_path,
-                    code=392,
-                    msg='Pre-existing DOCUMENTATION fragment missing: %s' % fragment
-                )
-                return
-            except Exception as e:
-                self.reporter.warning_trace(
-                    path=self.object_path,
-                    tracebk=e
-                )
-                self.reporter.warning(
-                    path=self.object_path,
-                    code=391,
-                    msg=('Unknown pre-existing DOCUMENTATION '
-                         'error, see TRACE. Submodule refs may '
-                         'need updated')
-                )
-                return
-
-        try:
-            mod_version_added = StrictVersion(
-                str(existing_doc.get('version_added', '0.0'))
-            )
-        except ValueError:
-            mod_version_added = StrictVersion('0.0')
-
-        options = doc.get('options', {}) or {}
-
-        should_be = '.'.join(ansible_version.split('.')[:2])
-        strict_ansible_version = StrictVersion(should_be)
-
-        for option, details in options.items():
-            try:
-                names = [option] + details.get('aliases', [])
-            except (TypeError, AttributeError):
-                # Reporting of this syntax error will be handled by schema validation.
-                continue
-
-            if any(name in existing_options for name in names):
-                continue
-
-            try:
-                version_added = StrictVersion(
-                    str(details.get('version_added', '0.0'))
-                )
-            except ValueError:
-                version_added = details.get('version_added', '0.0')
-                self.reporter.error(
-                    path=self.object_path,
-                    code=308,
-                    msg=('version_added for new option (%s) '
-                         'is not a valid version number: %r' %
-                         (option, version_added))
-                )
-                continue
-            except Exception:
-                # If there is any other exception it should have been caught
-                # in schema validation, so we won't duplicate errors by
-                # listing it again
-                continue
-
-            if (strict_ansible_version != mod_version_added and
-                    (version_added < strict_ansible_version or
-                     strict_ansible_version < version_added)):
-                self.reporter.error(
-                    path=self.object_path,
-                    code=309,
-                    msg=('version_added for new option (%s) should '
-                         'be %s. Currently %s' %
-                         (option, should_be, version_added))
-                )
-
     @staticmethod
     def is_blacklisted(path):
         base_name = os.path.basename(path)
@@ -1300,9 +934,7 @@ class ModuleValidator(Validator):
         return False
 
     def validate(self):
-        super(ModuleValidator, self).validate()
-
-        if not self._python_module() and not self._powershell_module():
+        if not self._python_file() and not self._powershell_file():
             self.reporter.error(
                 path=self.object_path,
                 code=501,
@@ -1310,9 +942,9 @@ class ModuleValidator(Validator):
                      'extension for python modules or a .ps1 '
                      'for powershell modules')
             )
-            self._python_module_override = True
+            self._python_file_override = True
 
-        if self._python_module() and self.ast is None:
+        if self._python_file() and self.ast is None:
             self.reporter.error(
                 path=self.object_path,
                 code=401,
@@ -1327,10 +959,10 @@ class ModuleValidator(Validator):
                 )
             return
 
-        end_of_deprecation_should_be_docs_only = False
-        if self._python_module():
-            doc_info, docs = self._validate_docs()
+        doc_info, docs = super(ModuleValidator, self).validate()
 
+        end_of_deprecation_should_be_docs_only = False
+        if self._python_file():
             # See if current version => deprecated.removed_in, ie, should be docs only
             if docs and 'deprecated' in docs and docs['deprecated'] is not None:
                 removed_in = docs.get('deprecated')['removed_in']
@@ -1338,7 +970,7 @@ class ModuleValidator(Validator):
                 end_of_deprecation_should_be_docs_only = strict_ansible_version >= removed_in
                 # FIXME if +2 then file should be empty? - maybe add this only in the future
 
-        if self._python_module() and not self._just_docs() and not end_of_deprecation_should_be_docs_only:
+        if self._python_file() and not self._just_docs() and not end_of_deprecation_should_be_docs_only:
             self._validate_argument_spec(docs)
             self._check_for_sys_exit()
             self._find_blacklist_imports()
@@ -1348,15 +980,14 @@ class ModuleValidator(Validator):
             first_callable = self._get_first_callable()
             self._ensure_imports_below_docs(doc_info, first_callable)
 
-        if self._powershell_module():
+        if self._powershell_file():
             self._validate_ps_replacers()
             self._find_ps_docs_py_file()
 
-        self._check_gpl3_header()
         if not self._just_docs() and not end_of_deprecation_should_be_docs_only:
-            self._check_interpreter(powershell=self._powershell_module())
+            self._check_interpreter(powershell=self._powershell_file())
             self._check_type_instead_of_isinstance(
-                powershell=self._powershell_module()
+                powershell=self._powershell_file()
             )
         if end_of_deprecation_should_be_docs_only:
             # Ensure that `if __name__ == '__main__':` calls `removed_module()` which ensure that the module has no code in
@@ -1367,7 +998,7 @@ class PythonPackageValidator(Validator):
     BLACKLIST_FILES = frozenset(('__pycache__',))
 
     def __init__(self, path, reporter=None):
-        super(PythonPackageValidator, self).__init__(reporter=reporter or Reporter())
+        super(PythonPackageValidator, self).__init__(path, reporter=reporter)
 
         self.path = path
         self.basename = os.path.basename(path)
