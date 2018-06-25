@@ -418,6 +418,16 @@
       - (lookup('file', output_dir ~ '/headers_dict.json')|from_json).headers.get('Foo') == 'bar'
       - (lookup('file', output_dir ~ '/headers_dict.json')|from_json).headers.get('Baz') == 'qux'
 
+- name: Test gzip decompression
+  get_url:
+    url: https://{{ httpbin_host }}/gzip
+    dest: "{{ output_dir }}/gzip.json"
+
+- name: validate gzip decompression
+  assert:
+    that:
+      - (lookup('file', output_dir ~ '/gzip.json')|from_json).gzipped
+
 - name: Test client cert auth, with certs
   get_url:
     url: "https://ansible.http.tests/ssl_client_verify"

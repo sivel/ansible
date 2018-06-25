@@ -293,7 +293,7 @@ from ansible.module_utils.six import PY2, iteritems, string_types
 from ansible.module_utils.six.moves.urllib.parse import urlencode, urlsplit
 from ansible.module_utils._text import to_native, to_text
 from ansible.module_utils.common._collections_compat import Mapping, Sequence
-from ansible.module_utils.urls import fetch_url, url_argument_spec
+from ansible.module_utils.urls import GzipDecodedResponse, fetch_url, url_argument_spec
 
 JSON_CANDIDATES = ('text', 'json', 'javascript')
 
@@ -457,7 +457,10 @@ def uri(module, url, dest, body, body_format, method, headers, socket_timeout):
                            method=method, timeout=socket_timeout, **kwargs)
 
     try:
-        content = resp.read()
+        if info.get('content-encoding') == 'gzip':
+            content = GzipDecodedResponse(resp).read()
+        else:
+            content = resp.read()
     except AttributeError:
         # there was no content, but the error read()
         # may have been stored in the info as 'body'

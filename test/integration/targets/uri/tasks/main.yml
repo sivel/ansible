@@ -485,6 +485,16 @@
     that:
       - result.json.json[0] == 'JSON Test Pattern pass1'
 
+- name: Test gzip encoding
+  uri:
+    url: "https://{{ httpbin_host }}/gzip"
+  register: result
+
+- name: Validate gzip decoding
+  assert:
+    that:
+      - result.json.gzipped
+
 - name: Test follow_redirects=none
   include_tasks: redirect-none.yml
 

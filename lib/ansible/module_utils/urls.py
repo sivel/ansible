@@ -33,6 +33,7 @@ this code instead.
 '''
 
 import base64
+import io
 import netrc
 import os
 import platform
@@ -41,6 +42,12 @@ import socket
 import sys
 import tempfile
 import traceback
+
+try:
+    import gzip
+    HAS_GZIP = True
+except ImportError:
+    HAS_GZIP = False
 
 try:
     import httplib
@@ -838,6 +845,35 @@ def rfc2822_date_string(timetuple, zone='-0000'):
          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][timetuple[1] - 1],
         timetuple[0], timetuple[3], timetuple[4], timetuple[5],
         zone)
+
+
+class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
+    """A file-like object to decode a response encoded with the gzip
+        method, as described in RFC 1952.
+        
+        Largely copied from ``xmlrpclib``/``xmlrpc.client`` and modified
+        to work for py2.4-py3
+        """
+    def __init__(self, response):
+        # response doesn't support tell() and read(), required by
+        # GzipFile
+        if not HAS_GZIP:
+            raise NotImplementedError
+        
+        self.io = io.BytesIO()
+        while 1:
+            chunk = response.read(1024)
+            if len(chunk) == 0:
+                break
+            self.io.write(chunk)
+        self.io.seek(0)
+        gzip.GzipFile.__init__(self, mode='rb', fileobj=self.io)  # pylint: disable=non-parent-init-called
+
+    def close(self):
+        try:
+            gzip.GzipFile.close(self)
+        finally:
+            self.io.close()
 
 
 class Request:
