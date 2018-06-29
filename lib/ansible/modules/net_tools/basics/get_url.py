@@ -330,7 +330,7 @@ import traceback
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.six.moves.urllib.parse import urlsplit
 from ansible.module_utils._text import to_native
-from ansible.module_utils.urls import GzipDecodedResponse, fetch_url, url_argument_spec
+from ansible.module_utils.urls import fetch_url, url_argument_spec
 
 # ==============================================================
 # url handling
@@ -384,11 +384,7 @@ def url_get(module, url, dest, use_proxy, last_mod_time, force, timeout=10, head
 
     f = os.fdopen(fd, 'wb')
     try:
-        if info.get('content-encoding') == 'gzip':
-            stream = GzipDecodedResponse(rsp)
-        else:
-            stream = rsp
-        shutil.copyfileobj(stream, f)
+        shutil.copyfileobj(rsp, f)
     except Exception as e:
         os.remove(tempname)
         module.fail_json(msg="failed to create temporary content file: %s" % to_native(e), elapsed=elapsed, exception=traceback.format_exc())

@@ -457,10 +457,7 @@ def uri(module, url, dest, body, body_format, method, headers, socket_timeout):
                            method=method, timeout=socket_timeout, **kwargs)
 
     try:
-        if info.get('content-encoding') == 'gzip':
-            content = GzipDecodedResponse(resp).read()
-        else:
-            content = resp.read()
+        content = resp.read()
     except AttributeError:
         # there was no content, but the error read()
         # may have been stored in the info as 'body'

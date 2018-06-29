@@ -876,6 +876,28 @@ class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
             self.io.close()
 
 
+class Response:
+    def __init__(self, response):
+        self._response = response
+        try:
+            # PY2
+            getheader = self._response.headers.getheader
+        except AttributeError:
+            # PY3
+            getheader = self._response.getheader
+
+        if getheader('content-encoding', '') == 'gzip':
+            self._stream = GzipDecodedResponse(self._response)
+        else:
+            self._stream = self._response
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
+    def read(self, amt=None):
+        return self._stream.read(amt)
+
+
 class Request:
     def __init__(self, headers=None, use_proxy=True, force=False, timeout=10, validate_certs=True,
                  url_username=None, url_password=None, http_agent=None, force_basic_auth=False,
@@ -1288,12 +1310,14 @@ def fetch_url(module, url, data=None, headers=None, method=None,
     r = None
     info = dict(url=url)
     try:
-        r = open_url(url, data=data, headers=headers, method=method,
-                     use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout,
-                     validate_certs=validate_certs, url_username=username,
-                     url_password=password, http_agent=http_agent, force_basic_auth=force_basic_auth,
-                     follow_redirects=follow_redirects, client_cert=client_cert,
-                     client_key=client_key, cookies=cookies)
+        r = Response(
+                open_url(url, data=data, headers=headers, method=method,
+                         use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout,
+                         validate_certs=validate_certs, url_username=username,
+                         url_password=password, http_agent=http_agent, force_basic_auth=force_basic_auth,
+                         follow_redirects=follow_redirects, client_cert=client_cert,
+                         client_key=client_key, cookies=cookies)
+        )
         # Lowercase keys, to conform to py2 behavior, so that py3 and py2 are predictable
         info.update(dict((k.lower(), v) for k, v in r.info().items()))
 
