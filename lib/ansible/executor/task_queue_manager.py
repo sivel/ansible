@@ -21,7 +21,13 @@ __metaclass__ = type
 
 import multiprocessing
 import os
+import sys
 import tempfile
+import threading
+import time
+import traceback
+
+from collections import deque
 
 from ansible import constants as C
 from ansible.errors import AnsibleError
@@ -47,6 +53,63 @@ except ImportError:
 
 
 __all__ = ['TaskQueueManager']
+
+
+_callback_term = object()
+
+
+class CallbackHandlerThread(threading.Thread):
+    def __init__(self, tqm):
+        threading.Thread.__init__(self)
+        self._tqm = tqm
+
+    def run(self):
+        while 1:
+            try:
+                method_name, args, kwargs = self._tqm._callback_events.popleft()
+            except IndexError:
+                time.sleep(.001)
+                continue
+            else:
+                if method_name is _callback_term:
+                    break
+
+            self._tqm._callback_events_lock.acquire()
+            for callback_plugin in [self._tqm._stdout_callback] + self._tqm._callback_plugins:
+                # a plugin that set self.disabled to True will not be called
+                # see osx_say.py example for such a plugin
+                if getattr(callback_plugin, 'disabled', False):
+                    continue
+
+                # try to find v2 method, fallback to v1 method, ignore callback if no method found
+                methods = []
+                for possible in [method_name, 'v2_on_any']:
+                    gotit = getattr(callback_plugin, possible, None)
+                    if gotit is None:
+                        gotit = getattr(callback_plugin, possible.replace('v2_', ''), None)
+                    if gotit is not None:
+                        methods.append(gotit)
+
+                # send clean copies
+                new_args = []
+                for arg in args:
+                    # FIXME: add play/task cleaners
+                    if isinstance(arg, TaskResult):
+                        new_args.append(arg.clean_copy())
+                    # elif isinstance(arg, Play):
+                    # elif isinstance(arg, Task):
+                    else:
+                        new_args.append(arg)
+
+                for method in methods:
+                    try:
+                        method(*new_args, **kwargs)
+                    except Exception as e:
+                        # TODO: add config toggle to make this fatal or not?
+                        display.warning(u"Failure using method (%s) in callback plugin (%s): %s" % (to_text(method_name), to_text(callback_plugin), to_text(e)))
+                        display.vvv('Callback Exception: \n%s' % traceback.format_exc())
+
+            self._tqm._callback_events_lock.release()
 
 
 class TaskQueueManager:
@@ -109,6 +172,10 @@ class TaskQueueManager:
         # A temporary file (opened pre-fork) used by connection
         # plugins for inter-process locking.
         self._connection_lockfile = tempfile.TemporaryFile()
+
+        self._callback_events = deque()
+        self._callback_events_lock = threading.Condition(threading.Lock())
+        self._callback_handler_thread = CallbackHandlerThread(self)
 
     def _initialize_processes(self, num):
         self._workers = []
@@ -216,6 +283,7 @@ class TaskQueueManager:
             self._callback_plugins.append(callback_obj)
 
         self._callbacks_loaded = True
+        self._callback_handler_thread.start()
 
     def run(self, play):
         '''
@@ -303,6 +371,7 @@ class TaskQueueManager:
         self.terminate()
         self._final_q.close()
         self._cleanup_processes()
+        self._callback_events.append((_callback_term, None, None))
 
     def _cleanup_processes(self):
         if hasattr(self, '_workers'):
@@ -344,38 +413,6 @@ class TaskQueueManager:
         return defunct
 
     def send_callback(self, method_name, *args, **kwargs):
-        for callback_plugin in [self._stdout_callback] + self._callback_plugins:
-            # a plugin that set self.disabled to True will not be called
-            # see osx_say.py example for such a plugin
-            if getattr(callback_plugin, 'disabled', False):
-                continue
-
-            # try to find v2 method, fallback to v1 method, ignore callback if no method found
-            methods = []
-            for possible in [method_name, 'v2_on_any']:
-                gotit = getattr(callback_plugin, possible, None)
-                if gotit is None:
-                    gotit = getattr(callback_plugin, possible.replace('v2_', ''), None)
-                if gotit is not None:
-                    methods.append(gotit)
-
-            # send clean copies
-            new_args = []
-            for arg in args:
-                # FIXME: add play/task cleaners
-                if isinstance(arg, TaskResult):
-                    new_args.append(arg.clean_copy())
-                # elif isinstance(arg, Play):
-                # elif isinstance(arg, Task):
-                else:
-                    new_args.append(arg)
-
-            for method in methods:
-                try:
-                    method(*new_args, **kwargs)
-                except Exception as e:
-                    # TODO: add config toggle to make this fatal or not?
-                    display.warning(u"Failure using method (%s) in callback plugin (%s): %s" % (to_text(method_name), to_text(callback_plugin), to_text(e)))
-                    from traceback import format_tb
-                    from sys import exc_info
-                    display.vvv('Callback Exception: \n' + ' '.join(format_tb(exc_info()[2])))
+        self._callback_events_lock.acquire()
+        self._callback_events.append((method_name, args, kwargs))
+        self._callback_events_lock.release()
