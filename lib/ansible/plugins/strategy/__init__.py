@@ -186,6 +186,8 @@ class StrategyBase:
         # the task args/vars and play context info used to queue the task.
         self._queued_task_cache = {}
 
+        self._include_results = {}
+
         # Backwards compat: self._display isn't really needed, just import the global display and use that.
         self._display = display
 
@@ -505,7 +507,9 @@ class StrategyBase:
                     self._tqm.send_callback('v2_runner_item_on_ok', task_result)
                 continue
 
-            if original_task.register:
+            dynamic_includes = original_task.get_parents(only_dynamic=True)
+            include_register = any(i.register for i in dynamic_includes)
+            if original_task.register or include_register:
                 host_list = self.get_task_hosts(iterator, original_host, original_task)
 
                 clean_copy = strip_internal_keys(task_result._result)
@@ -513,27 +517,22 @@ class StrategyBase:
                     del clean_copy['invocation']
 
                 for target_host in host_list:
-                    self._variable_manager.set_nonpersistent_facts(target_host, {original_task.register: clean_copy})
-
-            dynamic_includes = original_task.get_parents(only_dynamic=True)
-            if any(i.register for i in dynamic_includes):
-                host_list = self.get_task_hosts(iterator, original_host, original_task)
-                clean_copy = strip_internal_keys(task_result._result)
-                if 'invocation' in clean_copy:
-                    del clean_copy['invocation']
-                for include in dynamic_includes:
-                    if include.register:
-                        for target_host in host_list:
-                            facts = self._variable_manager.get_nonpersistent_facts(target_host)
-                            try:
-                                facts[include.register]['results'].append(clean_copy)
-                            except KeyError:
-                                facts[include.register]['results'] = [clean_copy]
-                            facts[include.register]['changed'] = any(r['changed'] for r in facts[include.register]['results'])
-                            if any(r['failed'] for r in facts[include.register]['results']):
-                                facts[include.register]['failed'] = True
-                                facts[include.register]['msg'] = 'One or more items failed'
-                            self._variable_manager.set_nonpersistent_facts(target_host, {include.register: facts[include.register]})
+                    if original_task.register:
+                        self._variable_manager.set_nonpersistent_facts(target_host, {original_task.register: clean_copy})
+                    if include_register:
+                        for include in dynamic_includes:
+                            if include.register:
+                                for target_host in host_list:
+                                    facts = self._variable_manager.get_nonpersistent_facts(target_host)
+                                    try:
+                                        facts[include.register]['results'].append(clean_copy)
+                                    except KeyError:
+                                        facts[include.register]['results'] = [clean_copy]
+                                    facts[include.register]['changed'] = any(r['changed'] for r in facts[include.register]['results'])
+                                    if any(r['failed'] for r in facts[include.register]['results']):
+                                        facts[include.register]['failed'] = True
+                                        facts[include.register]['msg'] = 'One or more items failed'
+                                    self._variable_manager.set_nonpersistent_facts(target_host, {include.register: facts[include.register]})
 
             # all host status messages contain 2 entries: (msg, task_result)
             role_ran = False
