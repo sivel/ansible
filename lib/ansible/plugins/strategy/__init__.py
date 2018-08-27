@@ -353,6 +353,104 @@ class StrategyBase:
 
         return [actual_host]
 
+    def _search_handler_blocks_by_name(self, handler_name, handler_blocks, iterator):
+        for handler_block in handler_blocks:
+            for handler_task in handler_block.block:
+                if handler_task.name:
+                    handler_vars = self._variable_manager.get_vars(play=iterator._play, task=handler_task)
+                    templar = Templar(loader=self._loader, variables=handler_vars)
+                    try:
+                        # first we check with the full result of get_name(), which may
+                        # include the role name (if the handler is from a role). If that
+                        # is not found, we resort to the simple name field, which doesn't
+                        # have anything extra added to it.
+                        target_handler_name = templar.template(handler_task.name)
+                        if target_handler_name == handler_name:
+                            return handler_task
+                        else:
+                            target_handler_name = templar.template(handler_task.get_name())
+                            if target_handler_name == handler_name:
+                                return handler_task
+                    except (UndefinedError, AnsibleUndefinedVariable):
+                        # We skip this handler due to the fact that it may be using
+                        # a variable in the name that was conditionally included via
+                        # set_fact or some other method, and we don't want to error
+                        # out unnecessarily
+                        continue
+        return None
+
+    def _search_handler_blocks_by_uuid(self, handler_uuid, handler_blocks):
+        for handler_block in handler_blocks:
+            for handler_task in handler_block.block:
+                if handler_uuid == handler_task._uuid:
+                    return handler_task
+        return None
+
+    def _parent_handler_match(self, target_handler, handler_name, iterator):
+        if target_handler:
+            if isinstance(target_handler, (TaskInclude, IncludeRole)):
+                try:
+                    handler_vars = self._variable_manager.get_vars(play=iterator._play, task=target_handler)
+                    templar = Templar(loader=self._loader, variables=handler_vars)
+                    target_handler_name = templar.template(target_handler.name)
+                    if target_handler_name == handler_name:
+                        return True
+                    else:
+                        target_handler_name = templar.template(target_handler.get_name())
+                        if target_handler_name == handler_name:
+                            return True
+                except (UndefinedError, AnsibleUndefinedVariable):
+                    pass
+            return self._parent_handler_match(target_handler._parent, handler_name, iterator)
+        else:
+            return False
+
+    def _notify_handlers(self, handlers, iterator, original_host):
+        for handler_name in handlers:
+            found = False
+            # Find the handler.  First we look up the
+            # dependency chain of the current task (if it's from a role), otherwise
+            # we just look through the list of handlers in the current play/all
+            # roles and use the first one that matches the notify name
+            target_handler = self._search_handler_blocks_by_name(handler_name, iterator._play.handlers, iterator)
+            if target_handler is not None:
+                found = True
+                if target_handler._uuid not in self._notified_handlers:
+                    self._notified_handlers[target_handler._uuid] = []
+                if original_host not in self._notified_handlers[target_handler._uuid]:
+                    self._notified_handlers[target_handler._uuid].append(original_host)
+                    self._tqm.send_callback('v2_playbook_on_notify', target_handler, original_host)
+            else:
+                # As there may be more than one handler with the notified name as the
+                # parent, so we just keep track of whether or not we found one at all
+                for target_handler_uuid in self._notified_handlers:
+                    target_handler = self._search_handler_blocks_by_uuid(target_handler_uuid, iterator._play.handlers)
+                    if target_handler and self._parent_handler_match(target_handler, handler_name, iterator):
+                        found = True
+                        if original_host not in self._notified_handlers[target_handler._uuid]:
+                            self._notified_handlers[target_handler._uuid].append(original_host)
+                            self._tqm.send_callback('v2_playbook_on_notify', target_handler, original_host)
+
+            if handler_name in self._listening_handlers:
+                for listening_handler_uuid in self._listening_handlers[handler_name]:
+                    listening_handler = self._search_handler_blocks_by_uuid(listening_handler_uuid, iterator._play.handlers)
+                    if listening_handler is not None:
+                        found = True
+                    else:
+                        continue
+                    if original_host not in self._notified_handlers[listening_handler._uuid]:
+                        self._notified_handlers[listening_handler._uuid].append(original_host)
+                        self._tqm.send_callback('v2_playbook_on_notify', listening_handler, original_host)
+
+            # and if none were found, then we raise an error
+            if not found:
+                msg = ("The requested handler '%s' was not found in either the main handlers list nor in the listening "
+                       "handlers list" % handler_name)
+                if C.ERROR_ON_MISSING_HANDLER:
+                    raise AnsibleError(msg)
+                else:
+                    display.warning(msg)
+
     @debug_closure
     def _process_pending_results(self, iterator, one_pass=False, max_passes=None):
         '''
@@ -369,58 +467,6 @@ class StrategyBase:
                 return self._inventory.hosts[host_name]
             else:
                 return self._inventory.get_host(host_name)
-
-        def search_handler_blocks_by_name(handler_name, handler_blocks):
-            for handler_block in handler_blocks:
-                for handler_task in handler_block.block:
-                    if handler_task.name:
-                        handler_vars = self._variable_manager.get_vars(play=iterator._play, task=handler_task)
-                        templar = Templar(loader=self._loader, variables=handler_vars)
-                        try:
-                            # first we check with the full result of get_name(), which may
-                            # include the role name (if the handler is from a role). If that
-                            # is not found, we resort to the simple name field, which doesn't
-                            # have anything extra added to it.
-                            target_handler_name = templar.template(handler_task.name)
-                            if target_handler_name == handler_name:
-                                return handler_task
-                            else:
-                                target_handler_name = templar.template(handler_task.get_name())
-                                if target_handler_name == handler_name:
-                                    return handler_task
-                        except (UndefinedError, AnsibleUndefinedVariable):
-                            # We skip this handler due to the fact that it may be using
-                            # a variable in the name that was conditionally included via
-                            # set_fact or some other method, and we don't want to error
-                            # out unnecessarily
-                            continue
-            return None
-
-        def search_handler_blocks_by_uuid(handler_uuid, handler_blocks):
-            for handler_block in handler_blocks:
-                for handler_task in handler_block.block:
-                    if handler_uuid == handler_task._uuid:
-                        return handler_task
-            return None
-
-        def parent_handler_match(target_handler, handler_name):
-            if target_handler:
-                if isinstance(target_handler, (TaskInclude, IncludeRole)):
-                    try:
-                        handler_vars = self._variable_manager.get_vars(play=iterator._play, task=target_handler)
-                        templar = Templar(loader=self._loader, variables=handler_vars)
-                        target_handler_name = templar.template(target_handler.name)
-                        if target_handler_name == handler_name:
-                            return True
-                        else:
-                            target_handler_name = templar.template(target_handler.get_name())
-                            if target_handler_name == handler_name:
-                                return True
-                    except (UndefinedError, AnsibleUndefinedVariable):
-                        pass
-                return parent_handler_match(target_handler._parent, handler_name)
-            else:
-                return False
 
         cur_pass = 0
         while True:
@@ -483,7 +529,9 @@ class StrategyBase:
                                 facts[include.register]['results'].append(clean_copy)
                             except KeyError:
                                 facts[include.register]['results'] = [clean_copy]
-                            facts[include.register]['changed'] = any(r['changed'] for r in facts[include.register]['results'])
+                            facts[include.register]['changed'] = changed = any(r['changed'] for r in facts[include.register]['results'])
+                            if changed:
+                                self._notify_handlers(include.notify, iterator, original_host)
                             if any(r['failed'] for r in facts[include.register]['results']):
                                 facts[include.register]['failed'] = True
                                 facts[include.register]['msg'] = 'One or more items failed'
@@ -560,50 +608,7 @@ class StrategyBase:
                             # does not detect when sub-objects within the proxy are modified.
                             # So, per the docs, we reassign the list so the proxy picks up and
                             # notifies all other threads
-                            for handler_name in result_item['_ansible_notify']:
-                                found = False
-                                # Find the handler using the above helper.  First we look up the
-                                # dependency chain of the current task (if it's from a role), otherwise
-                                # we just look through the list of handlers in the current play/all
-                                # roles and use the first one that matches the notify name
-                                target_handler = search_handler_blocks_by_name(handler_name, iterator._play.handlers)
-                                if target_handler is not None:
-                                    found = True
-                                    if target_handler._uuid not in self._notified_handlers:
-                                        self._notified_handlers[target_handler._uuid] = []
-                                    if original_host not in self._notified_handlers[target_handler._uuid]:
-                                        self._notified_handlers[target_handler._uuid].append(original_host)
-                                        self._tqm.send_callback('v2_playbook_on_notify', target_handler, original_host)
-                                else:
-                                    # As there may be more than one handler with the notified name as the
-                                    # parent, so we just keep track of whether or not we found one at all
-                                    for target_handler_uuid in self._notified_handlers:
-                                        target_handler = search_handler_blocks_by_uuid(target_handler_uuid, iterator._play.handlers)
-                                        if target_handler and parent_handler_match(target_handler, handler_name):
-                                            found = True
-                                            if original_host not in self._notified_handlers[target_handler._uuid]:
-                                                self._notified_handlers[target_handler._uuid].append(original_host)
-                                                self._tqm.send_callback('v2_playbook_on_notify', target_handler, original_host)
-
-                                if handler_name in self._listening_handlers:
-                                    for listening_handler_uuid in self._listening_handlers[handler_name]:
-                                        listening_handler = search_handler_blocks_by_uuid(listening_handler_uuid, iterator._play.handlers)
-                                        if listening_handler is not None:
-                                            found = True
-                                        else:
-                                            continue
-                                        if original_host not in self._notified_handlers[listening_handler._uuid]:
-                                            self._notified_handlers[listening_handler._uuid].append(original_host)
-                                            self._tqm.send_callback('v2_playbook_on_notify', listening_handler, original_host)
-
-                                # and if none were found, then we raise an error
-                                if not found:
-                                    msg = ("The requested handler '%s' was not found in either the main handlers list nor in the listening "
-                                           "handlers list" % handler_name)
-                                    if C.ERROR_ON_MISSING_HANDLER:
-                                        raise AnsibleError(msg)
-                                    else:
-                                        display.warning(msg)
+                            self._notify_handlers(result_item['_ansible_notify'], iterator, original_host)
 
                     if 'add_host' in result_item:
                         # this task added a new host (add_host module)
