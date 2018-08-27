@@ -469,6 +469,26 @@ class StrategyBase:
                 for target_host in host_list:
                     self._variable_manager.set_nonpersistent_facts(target_host, {original_task.register: clean_copy})
 
+            includes = original_task.get_parents(only_dynamic=True)
+            if any(i.register for i in includes):
+                host_list = self.get_task_hosts(iterator, original_host, original_task)
+                clean_copy = strip_internal_keys(task_result._result)
+                if 'invocation' in clean_copy:
+                    del clean_copy['invocation']
+                for include in includes:
+                    if include.register:
+                        for target_host in host_list:
+                            facts = self._variable_manager.get_nonpersistent_facts(target_host)
+                            try:
+                                facts[include.register]['results'].append(clean_copy)
+                            except KeyError:
+                                facts[include.register]['results'] = [clean_copy]
+                            facts[include.register]['changed'] = any(r['changed'] for r in facts[include.register]['results'])
+                            if any(r['failed'] for r in facts[include.register]['results']):
+                                facts[include.register]['failed'] = True
+                                facts[include.register]['msg'] = 'One or more items failed'
+                            self._variable_manager.set_nonpersistent_facts(target_host, {include.register: facts[include.register]})
+
             # all host status messages contain 2 entries: (msg, task_result)
             role_ran = False
             if task_result.is_failed():

@@ -633,6 +633,9 @@ class VariableManager:
             except KeyError:
                 self._nonpersistent_fact_cache[host.name] = facts
 
+    def get_nonpersistent_facts(self, host):
+        return self._nonpersistent_fact_cache.get(host.name, {})
+
     def set_host_variable(self, host, varname, value):
         '''
         Sets a value in the vars_cache for a host.

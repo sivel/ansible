@@ -494,6 +494,15 @@ class Task(Base, Conditional, Taggable, Become):
             return self._parent.all_parents_static()
         return True
 
+    def get_parents(self, only_dynamic=False):
+        parents = []
+        cur = self._parent
+        while cur:
+            if not only_dynamic or (only_dynamic and not getattr(cur, 'statically_loaded', True)):
+                parents.append(cur)
+            cur = cur._parent
+        return parents
+
     def get_first_parent_include(self):
         from ansible.playbook.task_include import TaskInclude
         if self._parent:
