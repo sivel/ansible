@@ -515,13 +515,13 @@ class StrategyBase:
                 for target_host in host_list:
                     self._variable_manager.set_nonpersistent_facts(target_host, {original_task.register: clean_copy})
 
-            includes = original_task.get_parents(only_dynamic=True)
-            if any(i.register for i in includes):
+            dynamic_includes = original_task.get_parents(only_dynamic=True)
+            if any(i.register for i in dynamic_includes):
                 host_list = self.get_task_hosts(iterator, original_host, original_task)
                 clean_copy = strip_internal_keys(task_result._result)
                 if 'invocation' in clean_copy:
                     del clean_copy['invocation']
-                for include in includes:
+                for include in dynamic_includes:
                     if include.register:
                         for target_host in host_list:
                             facts = self._variable_manager.get_nonpersistent_facts(target_host)
@@ -529,9 +529,7 @@ class StrategyBase:
                                 facts[include.register]['results'].append(clean_copy)
                             except KeyError:
                                 facts[include.register]['results'] = [clean_copy]
-                            facts[include.register]['changed'] = changed = any(r['changed'] for r in facts[include.register]['results'])
-                            if changed:
-                                self._notify_handlers(include.notify, iterator, original_host)
+                            facts[include.register]['changed'] = any(r['changed'] for r in facts[include.register]['results'])
                             if any(r['failed'] for r in facts[include.register]['results']):
                                 facts[include.register]['failed'] = True
                                 facts[include.register]['msg'] = 'One or more items failed'

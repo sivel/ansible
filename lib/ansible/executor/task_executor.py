@@ -711,8 +711,13 @@ class TaskExecutor:
         # save the notification target in the result, if it was specified, as
         # this task may be running in a loop in which case the notification
         # may be item-specific, ie. "notify: service {{item}}"
+        result['_ansible_notify'] = []
         if self._task.notify is not None:
-            result['_ansible_notify'] = self._task.notify
+            result['_ansible_notify'].extend(self._task.notify)
+
+        for include in self._task.get_parents(only_dynamic=True):
+            if include.notify:
+                result['_ansible_notify'].extend(include.notify)
 
         # add the delegated vars to the result, so we can reference them
         # on the results side without having to do any further templating
