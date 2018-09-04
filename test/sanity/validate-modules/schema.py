@@ -46,7 +46,7 @@ def sequence_of_sequences(min=None, max=None):
 
 
 argument_spec_types = ['str', 'list', 'dict', 'bool', 'int', 'float', 'path', 'raw', 'jsonarg',
-                  'json', 'bytes', 'bits']
+                       'json', 'bytes', 'bits']
 
 
 argument_spec_modifiers = {
