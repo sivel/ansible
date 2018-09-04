@@ -16,10 +16,18 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, All, Any, Length, Required, Schema, Self
+import types
+
+from voluptuous import ALLOW_EXTRA, PREVENT_EXTRA, All, Any, ValueInvalid, Length, Required, Schema, Self
 from ansible.module_utils.six import string_types
 list_string_types = list(string_types)
 any_string_types = Any(*string_types)
+
+
+def is_callable(v):
+    if not callable(v):
+        raise ValueInvalid('not a valid value')
+    return v
 
 
 def sequence_of_sequences(min=None, max=None):
@@ -37,20 +45,54 @@ def sequence_of_sequences(min=None, max=None):
     )
 
 
-ansible_module_kwargs_schema = Schema(
-    {
-        'argument_spec': dict,
+argument_spec_types = ['str', 'list', 'dict', 'bool', 'int', 'float', 'path', 'raw', 'jsonarg',
+                  'json', 'bytes', 'bits']
+
+
+argument_spec_modifiers = {
+    'mutually_exclusive': sequence_of_sequences(min=2),
+    'required_together': sequence_of_sequences(min=2),
+    'required_one_of': sequence_of_sequences(min=2),
+    'required_if': sequence_of_sequences(min=3),
+}
+
+
+def argument_spec_schema():
+    any_string_types = Any(*string_types)
+    schema = {
+        any_string_types: {
+            'type': Any(is_callable, *argument_spec_types),
+            'elements': Any(*argument_spec_types),
+            'default': object,
+            'fallback': Any(
+                (is_callable, list_string_types),
+                [is_callable, list_string_types],
+            ),
+            'choices': Any([object], (object,)),
+            'required': bool,
+            'no_log': bool,
+            'aliases': Any(list_string_types, tuple(list_string_types)),
+            'apply_defaults': bool,
+            'removed_in_version': Any(float, *string_types),
+            'options': Self,
+        }
+    }
+    schema[any_string_types].update(argument_spec_modifiers)
+    return Schema(schema)
+
+
+def ansible_module_kwargs_schema():
+    schema = {
+        'argument_spec': argument_spec_schema(),
         'bypass_checks': bool,
         'no_log': bool,
         'check_invalid_arguments': Any(None, bool),
-        'mutually_exclusive': sequence_of_sequences(min=2),
-        'required_together': sequence_of_sequences(min=2),
-        'required_one_of': sequence_of_sequences(min=2),
         'add_file_common_args': bool,
         'supports_check_mode': bool,
-        'required_if': sequence_of_sequences(min=3),
     }
-)
+    schema.update(argument_spec_modifiers)
+    return Schema(schema)
+
 
 suboption_schema = Schema(
     {
