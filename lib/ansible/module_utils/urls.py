@@ -850,7 +850,7 @@ def rfc2822_date_string(timetuple, zone='-0000'):
 class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
     """A file-like object to decode a response encoded with the gzip
         method, as described in RFC 1952.
-        
+
         Largely copied from ``xmlrpclib``/``xmlrpc.client`` and modified
         to work for py2.4-py3
         """
@@ -859,7 +859,7 @@ class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
         # GzipFile
         if not HAS_GZIP:
             raise NotImplementedError
-        
+
         self.io = io.BytesIO()
         while 1:
             chunk = response.read(1024)
@@ -1311,12 +1311,12 @@ def fetch_url(module, url, data=None, headers=None, method=None,
     info = dict(url=url)
     try:
         r = Response(
-                open_url(url, data=data, headers=headers, method=method,
-                         use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout,
-                         validate_certs=validate_certs, url_username=username,
-                         url_password=password, http_agent=http_agent, force_basic_auth=force_basic_auth,
-                         follow_redirects=follow_redirects, client_cert=client_cert,
-                         client_key=client_key, cookies=cookies)
+            open_url(url, data=data, headers=headers, method=method,
+                     use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout,
+                     validate_certs=validate_certs, url_username=username,
+                     url_password=password, http_agent=http_agent, force_basic_auth=force_basic_auth,
+                     follow_redirects=follow_redirects, client_cert=client_cert,
+                     client_key=client_key, cookies=cookies)
         )
         # Lowercase keys, to conform to py2 behavior, so that py3 and py2 are predictable
         info.update(dict((k.lower(), v) for k, v in r.info().items()))
