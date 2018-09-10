@@ -884,7 +884,11 @@ class Response:
             getheader = self._response.headers.getheader
         except AttributeError:
             # PY3
-            getheader = self._response.getheader
+            try:
+                getheader = self._response.getheader
+            except AttributeError:
+                # Not a request to an HTTP resource
+                getheader = dict().get
 
         if getheader('content-encoding', '') == 'gzip':
             self._stream = GzipDecodedResponse(self._response)
