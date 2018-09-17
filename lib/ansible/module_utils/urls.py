@@ -34,6 +34,7 @@ this code instead.
 
 import base64
 import io
+import json
 import netrc
 import os
 import platform
@@ -877,20 +878,25 @@ class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
 
 
 class Response:
-    def __init__(self, response):
+    def __init__(self, response, req=None):
         self._response = response
+        self.req = req
+
+        self._has_read = False
+        self._text = None
+
         try:
             # PY2
-            getheader = self._response.headers.getheader
+            self.getheader = self._response.headers.getheader
         except AttributeError:
             # PY3
             try:
-                getheader = self._response.getheader
+                self.getheader = self._response.getheader
             except AttributeError:
                 # Not a request to an HTTP resource
-                getheader = dict().get
+                self.getheader = dict().get
 
-        if getheader('content-encoding', '') == 'gzip':
+        if self.getheader('content-encoding', '') == 'gzip':
             self._stream = GzipDecodedResponse(self._response)
         else:
             self._stream = self._response
@@ -899,7 +905,34 @@ class Response:
         return getattr(self._response, name)
 
     def read(self, amt=None):
+        self._has_read = True
         return self._stream.read(amt)
+
+    def json(self):
+        return json.loads(self.text)
+
+    @property
+    def text(self):
+        if self._has_read and not self._text:
+            raise ValueError('cannot be called after read')
+
+        if self._text:
+            return self._text
+
+        self._text = self.read()
+        return self._text
+
+    @property
+    def headers(self):
+        # Don't be lossy, append header values for duplicate headers
+        headers = {}
+        for name, value in self._response.headers.items():
+            name = name.lower()
+            if name in headers:
+                headers[name] = ', '.join((headers[name], value))
+            else:
+                headers[name] = value
+        return headers
 
 
 class Request:
@@ -1130,7 +1163,10 @@ class Request:
             # have a timeout parameter
             urlopen_args.append(timeout)
 
-        r = urllib_request.urlopen(*urlopen_args)
+        r = Response(
+            urllib_request.urlopen(*urlopen_args),
+            req=request
+        )
         return r
 
     def get(self, url, **kwargs):
@@ -1314,29 +1350,14 @@ def fetch_url(module, url, data=None, headers=None, method=None,
     r = None
     info = dict(url=url)
     try:
-        r = Response(
-            open_url(url, data=data, headers=headers, method=method,
+        r = open_url(url, data=data, headers=headers, method=method,
                      use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout,
                      validate_certs=validate_certs, url_username=username,
                      url_password=password, http_agent=http_agent, force_basic_auth=force_basic_auth,
                      follow_redirects=follow_redirects, client_cert=client_cert,
                      client_key=client_key, cookies=cookies)
-        )
         # Lowercase keys, to conform to py2 behavior, so that py3 and py2 are predictable
-        info.update(dict((k.lower(), v) for k, v in r.info().items()))
-
-        # Don't be lossy, append header values for duplicate headers
-        # In Py2 there is nothing that needs done, py2 does this for us
-        if PY3:
-            temp_headers = {}
-            for name, value in r.headers.items():
-                # The same as above, lower case keys to match py2 behavior, and create more consistent results
-                name = name.lower()
-                if name in temp_headers:
-                    temp_headers[name] = ', '.join((temp_headers[name], value))
-                else:
-                    temp_headers[name] = value
-            info.update(temp_headers)
+        info.update(r.headers)
 
         # parse the cookies into a nice dictionary
         cookie_list = []
@@ -1351,7 +1372,7 @@ def fetch_url(module, url, data=None, headers=None, method=None,
 
         info['cookies'] = cookie_dict
         # finally update the result with a message about the fetch
-        info.update(dict(msg="OK (%s bytes)" % r.headers.get('Content-Length', 'unknown'), url=r.geturl(), status=r.code))
+        info.update(dict(msg="OK (%s bytes)" % r.getheader('Content-Length', 'unknown'), url=r.geturl(), status=r.code))
     except NoSSLError as e:
         distribution = get_distribution()
         if distribution is not None and distribution.lower() == 'redhat':
