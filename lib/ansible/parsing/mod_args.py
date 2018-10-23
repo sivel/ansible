@@ -255,6 +255,9 @@ class ModuleArgsParser:
         task, dealing with all sorts of levels of fuzziness.
         '''
 
+        # Imported here to avoid circular imports with Play
+        from ansible.vars.reserved import is_reserved_name
+
         thing = None
 
         action = None
@@ -286,7 +289,7 @@ class ModuleArgsParser:
 
         # walk the input dictionary to see we recognize a module name
         for (item, value) in iteritems(self._task_ds):
-            if item in BUILTIN_TASKS or item in action_loader or item in module_loader:
+            if not is_reserved_name(item) and (item in BUILTIN_TASKS or item in action_loader or item in module_loader):
                 # finding more than one module name is a problem
                 if action is not None:
                     raise AnsibleParserError("conflicting action statements: %s, %s" % (action, item), obj=self._task_ds)
@@ -314,5 +317,11 @@ class ModuleArgsParser:
                 raise AnsibleParserError("this task '%s' has extra params, which is only allowed in the following modules: %s" % (action,
                                                                                                                                   ", ".join(RAW_PARAM_MODULES)),
                                          obj=self._task_ds)
+
+        if is_reserved_name(action):
+            raise AnsibleParserError(
+                "Invalid action detected in task. '%s' shadows the name of a reserved keyword." % action,
+                obj=self._task_ds
+            )
 
         return (action, args, delegate_to)
