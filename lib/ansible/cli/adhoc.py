@@ -65,7 +65,7 @@ class AdHocCLI(CLI):
             raise AnsibleOptionsError("Extraneous options or arguments")
 
         display.verbosity = options.verbosity
-        self.validate_conflicts(options, runas_opts=True, vault_opts=True, fork_opts=True)
+        self.validate_conflicts(options, runas_opts=True, fork_opts=True)
 
         options = self.normalize_become_options(options)
 
