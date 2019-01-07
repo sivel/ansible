@@ -17,7 +17,7 @@ import ansible.plugins.loader as plugin_loader
 from ansible import constants as C
 from ansible import context
 from ansible.cli import CLI
-from ansible.cli.arguments import optparse_helpers as opt_help
+from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.module_utils._text import to_native
 from ansible.module_utils.common._collections_compat import Sequence
@@ -49,29 +49,30 @@ class DocCLI(CLI):
     def init_parser(self):
 
         super(DocCLI, self).init_parser(
-            usage='usage: %prog [-l|-F|-s] [options] [-t <plugin type> ] [plugin]',
             desc="plugin documentation tool",
             epilog="See man pages for Ansible CLI options or website for tutorials https://docs.ansible.com"
         )
         opt_help.add_module_options(self.parser)
 
-        self.parser.add_option("-F", "--list_files", action="store_true", default=False, dest="list_files",
-                               help='Show plugin names and their source files without summaries (implies --list)')
-        self.parser.add_option("-l", "--list", action="store_true", default=False, dest='list_dir',
-                               help='List available plugins')
-        self.parser.add_option("-s", "--snippet", action="store_true", default=False, dest='show_snippet',
-                               help='Show playbook snippet for specified plugin(s)')
-        self.parser.add_option("-a", "--all", action="store_true", default=False, dest='all_plugins',
-                               help='**For internal testing only** Show documentation for all plugins.')
-        self.parser.add_option("-j", "--json", action="store_true", default=False, dest='json_dump',
-                               help='**For internal testing only** Dump json metadata for all plugins.')
-        self.parser.add_option("-t", "--type", action="store", default='module', dest='type', type='choice',
-                               help='Choose which plugin type (defaults to "module"). '
-                                    'Available plugin types are : {0}'.format(C.DOCUMENTABLE_PLUGINS),
-                               choices=C.DOCUMENTABLE_PLUGINS)
+        self.parser.add_argument('args', nargs='*', help='Plugin', metavar='plugin')
 
-    def post_process_args(self, options, args):
-        options, args = super(DocCLI, self).post_process_args(options, args)
+        self.parser.add_argument("-F", "--list_files", action="store_true", default=False, dest="list_files",
+                                 help='Show plugin names and their source files without summaries (implies --list)')
+        self.parser.add_argument("-l", "--list", action="store_true", default=False, dest='list_dir',
+                                 help='List available plugins')
+        self.parser.add_argument("-s", "--snippet", action="store_true", default=False, dest='show_snippet',
+                                 help='Show playbook snippet for specified plugin(s)')
+        self.parser.add_argument("-a", "--all", action="store_true", default=False, dest='all_plugins',
+                                 help='**For internal testing only** Show documentation for all plugins.')
+        self.parser.add_argument("-j", "--json", action="store_true", default=False, dest='json_dump',
+                                 help='**For internal testing only** Dump json metadata for all plugins.')
+        self.parser.add_argument("-t", "--type", action="store", default='module', dest='type',
+                                 help='Choose which plugin type (defaults to "module"). '
+                                      'Available plugin types are : {0}'.format(C.DOCUMENTABLE_PLUGINS),
+                                 choices=C.DOCUMENTABLE_PLUGINS)
+
+    def post_process_args(self, options):
+        options = super(DocCLI, self).post_process_args(options)
 
         if [options.all_plugins, options.json_dump, options.list_dir, options.list_files, options.show_snippet].count(True) > 1:
             raise AnsibleOptionsError("Only one of -l, -F, -s, -j or -a can be used at the same time.")
@@ -80,11 +81,11 @@ class DocCLI(CLI):
 
         # process all plugins of type
         if options.all_plugins:
-            args = self.get_all_plugins_of_type(options['type'])
+            options.args = self.get_all_plugins_of_type(options['type'])
             if options.module_path:
                 display.warning('Ignoring "--module-path/-M" option as "--all/-a" only displays builtins')
 
-        return options, args
+        return options
 
     def run(self):
 
