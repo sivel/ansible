@@ -296,7 +296,7 @@ For example, to use a 'dev' password read from a file and to be prompted for the
 In the above case, the 'dev' password will be tried first, then the 'prod' password for cases
 where Ansible doesn't know which vault id is used to encrypt something.
 
-If the vault content was encrypted using a :option:`--vault-id <ansible-vault --vault-id>` option, then the label of the
+If the vault content was encrypted using a :option:`--vault-id <ansible-vault-create --vault-id>` option, then the label of the
 vault id is stored with the vault content. When Ansible knows the right vault-id, it will try
 the matching vault id's secret first before trying the rest of the vault-ids.
 
