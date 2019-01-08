@@ -30,6 +30,12 @@ from ansible.utils.path import unfrackpath
 from ansible.vars.manager import VariableManager
 from ansible.parsing.vault import PromptVaultSecret, get_file_vault_secret
 
+try:
+    import argcomplete
+    HAS_ARGCOMPLETE = True
+except ImportError:
+    HAS_ARGCOMPLETE = False
+
 
 display = Display()
 
@@ -377,6 +383,10 @@ class CLI(with_metaclass(ABCMeta, object)):
         are called from this function before and after parsing the arguments.
         """
         self.init_parser()
+
+        if HAS_ARGCOMPLETE:
+            argcomplete.autocomplete(self.parser)
+
         options = self.parser.parse_args(self.args[1:])
         options = self.post_process_args(options)
         context._init_global_context(options)
