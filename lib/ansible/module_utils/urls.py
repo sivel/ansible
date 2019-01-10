@@ -34,6 +34,7 @@ this code instead.
 
 import atexit
 import base64
+import cgi
 import functools
 import netrc
 import os
