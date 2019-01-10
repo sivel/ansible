@@ -353,7 +353,7 @@ from ansible.module_utils.six import PY2, iteritems, string_types
 from ansible.module_utils.six.moves.urllib.parse import urlencode, urlsplit
 from ansible.module_utils._text import to_native, to_text
 from ansible.module_utils.common._collections_compat import Mapping, Sequence
-from ansible.module_utils.urls import fetch_url, url_argument_spec
+from ansible.module_utils.urls import fetch_url, url_argument_spec, get_response_filename
 
 JSON_CANDIDATES = ('text', 'json', 'javascript')
 
@@ -416,13 +416,6 @@ def write_file(module, url, dest, content, resp):
             module.fail_json(msg=msg, **resp)
 
     os.remove(tmpsrc)
-
-
-def url_filename(url):
-    fn = os.path.basename(urlsplit(url)[2])
-    if fn == '':
-        return 'index.html'
-    return fn
 
 
 def absolute_location(url, location):
@@ -500,32 +493,17 @@ def uri(module, url, dest, body, body_format, method, headers, socket_timeout):
 
     kwargs = {}
     if dest is not None:
-        # Stash follow_redirects, in this block we don't want to follow
-        # we'll reset back to the supplied value soon
-        follow_redirects = module.params['follow_redirects']
-        module.params['follow_redirects'] = False
-        if os.path.isdir(dest):
-            # first check if we are redirected to a file download
-            _, redir_info = fetch_url(module, url, data=body,
-                                      headers=headers,
-                                      method=method,
-                                      timeout=socket_timeout, unix_socket=module.params['unix_socket'])
-            # if we are redirected, update the url with the location header,
-            # and update dest with the new url filename
-            if redir_info['status'] in (301, 302, 303, 307):
-                url = redir_info['location']
-                redirected = True
-            dest = os.path.join(dest, url_filename(url))
         # if destination file already exist, only download if file newer
         if os.path.exists(dest):
             kwargs['last_mod_time'] = datetime.datetime.utcfromtimestamp(os.path.getmtime(dest))
 
-        # Reset follow_redirects back to the stashed value
-        module.params['follow_redirects'] = follow_redirects
-
     resp, info = fetch_url(module, url, data=data, headers=headers,
                            method=method, timeout=socket_timeout, unix_socket=module.params['unix_socket'],
                            **kwargs)
+
+    if dest is not None and os.path.isdir(dest):
+        filename = get_response_filename(resp) or 'index.html'
+        dest = os.path.join(dest, filename)
 
     try:
         content = resp.read()
