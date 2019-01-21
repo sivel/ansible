@@ -885,16 +885,16 @@ class Response:
         self._has_read = False
         self._text = None
 
+        if PY3:
+            self._headers = httplib.HTTPMessage()
+        else:
+            self._headers = httplib.HTTPMessage(io.StringIO())
+
         try:
-            # PY2
-            self.getheader = self._response.headers.getheader
+            self.getheader = self._response.headers.get
         except AttributeError:
-            # PY3
-            try:
-                self.getheader = self._response.getheader
-            except AttributeError:
-                # Not a request to an HTTP resource
-                self.getheader = dict().get
+            # Not a request to an HTTP resource
+            self.getheader = dict().get
 
         if self.getheader('content-encoding', '') == 'gzip':
             self._stream = GzipDecodedResponse(self._response)
@@ -924,15 +924,18 @@ class Response:
 
     @property
     def headers(self):
+        if self._headers:
+            return self._headers
+
         # Don't be lossy, append header values for duplicate headers
-        headers = {}
         for name, value in self._response.headers.items():
-            name = name.lower()
-            if name in headers:
-                headers[name] = ', '.join((headers[name], value))
+            if name in self._headers:
+                old = self._headers[name]
+                del self._headers[name]
+                self._headers[name] = ', '.join((old, value))
             else:
-                headers[name] = value
-        return headers
+                self._headers[name] = value
+        return self._headers
 
 
 class Request:
@@ -1357,7 +1360,7 @@ def fetch_url(module, url, data=None, headers=None, method=None,
                      follow_redirects=follow_redirects, client_cert=client_cert,
                      client_key=client_key, cookies=cookies)
         # Lowercase keys, to conform to py2 behavior, so that py3 and py2 are predictable
-        info.update(r.headers)
+        info.update((k.lower(), v) for k, v in r.headers.items())
 
         # parse the cookies into a nice dictionary
         cookie_list = []

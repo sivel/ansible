@@ -10,7 +10,7 @@ import socket
 from ansible.module_utils.six import StringIO
 from ansible.module_utils.six.moves.http_cookiejar import Cookie
 from ansible.module_utils.six.moves.http_client import HTTPMessage
-from ansible.module_utils.urls import fetch_url, urllib_error, ConnectionError, NoSSLError, httplib
+from ansible.module_utils.urls import fetch_url, urllib_error, ConnectionError, NoSSLError, httplib, Response
 
 import pytest
 from mock import MagicMock
@@ -103,7 +103,7 @@ def test_fetch_url_cookies(mocker, fake_ansible_module):
             # PY2
             r.headers = HTTPMessage(StringIO())
             add_header = r.headers.addheader
-        r.info.return_value = r.headers
+        resp = Response(r)
         for name, value in (('Foo', 'bar'), ('Baz', 'qux')):
             cookie = Cookie(
                 version=0,
@@ -126,7 +126,7 @@ def test_fetch_url_cookies(mocker, fake_ansible_module):
             cookies.set_cookie(cookie)
             add_header('Set-Cookie', '%s=%s' % (name, value))
 
-        return r
+        return resp
 
     mocker = mocker.patch('ansible.module_utils.urls.open_url', new=make_cookies)
 
