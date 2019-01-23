@@ -877,32 +877,33 @@ class GzipDecodedResponse(gzip.GzipFile if HAS_GZIP else object):
             self.io.close()
 
 
-class Response:
-    def __init__(self, response, req=None):
-        self._response = response
-        self.req = req
+def normalize_headers(headers):
+    if PY3:
+        normalized = httplib.HTTPMessage()
+    else:
+        normalized = httplib.HTTPMessage(io.StringIO())
 
+    # Don't be lossy, append header values for duplicate headers
+    for name, value in headers.items():
+        if name in normalized:
+            old = normalized[name]
+            del normalized[name]
+            normalized[name] = ', '.join((old, value))
+        else:
+            normalized[name] = value
+    return normalized
+
+
+class _ResponseHelpers:
+    def __init__(self):
         self._has_read = False
         self._text = None
 
-        if PY3:
-            self._headers = httplib.HTTPMessage()
+    def _set_stream(self, stream):
+        if self.headers.get('content-encoding', '') == 'gzip':
+            self._stream = GzipDecodedResponse(stream)
         else:
-            self._headers = httplib.HTTPMessage(io.StringIO())
-
-        try:
-            self.getheader = self._response.headers.get
-        except AttributeError:
-            # Not a request to an HTTP resource
-            self.getheader = dict().get
-
-        if self.getheader('content-encoding', '') == 'gzip':
-            self._stream = GzipDecodedResponse(self._response)
-        else:
-            self._stream = self._response
-
-    def __getattr__(self, name):
-        return getattr(self._response, name)
+            self._stream = stream
 
     def read(self, amt=None):
         self._has_read = True
@@ -922,19 +923,38 @@ class Response:
         self._text = self.read()
         return self._text
 
+
+class HTTPErrorHandler(urllib_request.HTTPDefaultErrorHandler):
+    def http_error_default(self, req, fp, code, msg, hdrs):
+        raise HTTPError(req.full_url, code, msg, hdrs, fp)
+
+
+class HTTPError(urllib_error.HTTPError, _ResponseHelpers):
+    def __init__(self, url, code, msg, hdrs, fp):
+        super(HTTPError, self).__init__(url, code, msg, hdrs, fp)
+        self.hdrs = normalize_headers(self.hdrs)
+        self._set_stream(fp)
+        _ResponseHelpers.__init__(self)
+
+
+class Response(_ResponseHelpers):
+    def __init__(self, response, req=None):
+        self._response = response
+        self.req = req
+        self._headers = normalize_headers({})
+        self._set_stream(self._response)
+        _ResponseHelpers.__init__(self)
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
     @property
     def headers(self):
         if self._headers:
             return self._headers
 
-        # Don't be lossy, append header values for duplicate headers
-        for name, value in self._response.headers.items():
-            if name in self._headers:
-                old = self._headers[name]
-                del self._headers[name]
-                self._headers[name] = ', '.join((old, value))
-            else:
-                self._headers[name] = value
+        self._headers = normalize_headers(self._response.headers)
+
         return self._headers
 
 
@@ -1046,7 +1066,7 @@ class Request:
         client_key = self._fallback(client_key, self.client_key)
         cookies = self._fallback(cookies, self.cookies)
 
-        handlers = []
+        handlers = [HTTPErrorHandler]
         ssl_handler = maybe_add_ssl_handler(url, validate_certs)
         if ssl_handler:
             handlers.append(ssl_handler)
@@ -1375,7 +1395,7 @@ def fetch_url(module, url, data=None, headers=None, method=None,
 
         info['cookies'] = cookie_dict
         # finally update the result with a message about the fetch
-        info.update(dict(msg="OK (%s bytes)" % r.getheader('Content-Length', 'unknown'), url=r.geturl(), status=r.code))
+        info.update(dict(msg="OK (%s bytes)" % r.headers.get('Content-Length', 'unknown'), url=r.geturl(), status=r.code))
     except NoSSLError as e:
         distribution = get_distribution()
         if distribution is not None and distribution.lower() == 'redhat':
