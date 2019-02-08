@@ -325,8 +325,7 @@ class PluginLoader:
 
                 # HACK: We have no way of executing python byte compiled files as ansible modules so specifically exclude them
                 # For all other plugins we want .pyc and .pyo should be valid
-                # since module_utils and modules dont have a base class but rest of plugins do:
-                if not self.base_class and full_path.endswith(('.pyc', '.pyo')):
+                if full_path.endswith(('.pyc', '.pyo')):
                     continue
 
                 splitname = os.path.splitext(full_name)
