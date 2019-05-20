@@ -77,8 +77,11 @@ def add_fragments(doc, filename, fragment_loader):
 
         fragment_class = fragment_loader.get(fragment_name)
         if fragment_class is None:
-            import traceback; traceback.print_stack()
-            raise AnsibleAssertionError('fragment_class is None')
+            try:
+                raise AnsibleAssertionError('fragment_class is None')
+            except Exception as e:
+                import traceback
+                raise AnsibleAssertionError(traceback.format_exc())
 
         fragment_yaml = getattr(fragment_class, fragment_var, '{}')
         fragment = AnsibleLoader(fragment_yaml, file_name=filename).get_single_data()
