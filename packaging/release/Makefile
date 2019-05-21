@@ -1,4 +1,6 @@
-version ?= $(shell python versionhelper/version_helper.py --raw)
+PYTHON=python
+
+version ?= $(shell $(PYTHON) versionhelper/version_helper.py --raw)
 
 .PHONY: all
 all:
