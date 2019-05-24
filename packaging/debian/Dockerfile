@@ -11,10 +11,9 @@ RUN apt-get update && apt-get install -y \
     python3-setuptools \
     python3-yaml \
     python3-packaging \
-    locales \
-    && \
-    apt-get clean
-    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locales && \
+    apt-get clean && \
+    sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     locale-gen
 
 ENV LANG en_US.UTF-8
