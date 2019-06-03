@@ -34,7 +34,6 @@ this code instead.
 
 import atexit
 import base64
-import cgi
 import functools
 import netrc
 import os
@@ -635,12 +634,7 @@ def get_response_filename(response):
     if filename:
         filename = unquote(filename)
 
-    content_disposition = response.headers.get('content-disposition')
-    if content_disposition:
-        mime_type, params = cgi.parse_header(content_disposition)
-        filename = params.get('filename') or filename
-
-    return filename
+    return response.headers.get_param('filename', header='content-disposition') or filename
 
 
 class RequestWithMethod(urllib_request.Request):
