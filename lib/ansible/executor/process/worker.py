@@ -36,6 +36,8 @@ except Exception:
     # need to take charge of calling it.
     pass
 
+import ansible.utils.db as db_utils
+
 from ansible.errors import AnsibleConnectionFailure
 from ansible.executor.task_executor import TaskExecutor
 from ansible.executor.task_result import TaskResult
@@ -54,18 +56,19 @@ class WorkerProcess(multiprocessing.Process):
     for reading later.
     '''
 
-    def __init__(self, final_q, task_vars, host, task, play_context, loader, variable_manager, shared_loader_obj):
+    def __init__(self, final_q, db_path, key, secret, host, task, play_context, loader, variable_manager, shared_loader_obj):
 
         super(WorkerProcess, self).__init__()
         # takes a task queue manager as the sole param:
         self._final_q = final_q
-        self._task_vars = task_vars
         self._host = host
         self._task = task
         self._play_context = play_context
         self._loader = loader
         self._variable_manager = variable_manager
         self._shared_loader_obj = shared_loader_obj
+
+        dummy, self._task_vars = db_utils.read(db_path, key, secret)
 
     def _save_stdin(self):
         self._new_stdin = os.devnull

@@ -426,6 +426,7 @@ class VariableManager:
         display.debug("done with get_vars()")
         return all_vars
 
+    @cprofile_func(cache=True)
     def _get_magic_variables(self, play, host, task, include_hostvars, include_delegate_to):
         '''
         Returns a dictionary of so-called "magic" variables in Ansible,

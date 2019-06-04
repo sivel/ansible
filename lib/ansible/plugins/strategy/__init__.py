@@ -26,10 +26,13 @@ import pprint
 import sys
 import threading
 import time
+import uuid
 
 from collections import deque
 from multiprocessing import Lock
 from jinja2.exceptions import UndefinedError
+
+import ansible.utils.db as db_utils
 
 from ansible import constants as C
 from ansible import context
@@ -311,7 +314,10 @@ class StrategyBase:
                         'play_context': play_context
                     }
 
-                    worker_prc = WorkerProcess(self._final_q, task_vars, host, task, play_context, self._loader, self._variable_manager, shared_loader_obj)
+                    db = os.path.join(C.DEFAULT_LOCAL_TMP, 'ansible-%d.sqlite' % os.getpid())
+                    key, secret = db_utils.write(db, uuid.uuid4().hex, task_vars)
+
+                    worker_prc = WorkerProcess(self._final_q, db, key, secret, host, task, play_context, self._loader, self._variable_manager, shared_loader_obj)
                     self._workers[self._cur_worker] = worker_prc
                     self._tqm.send_callback('v2_runner_on_start', host, task)
                     worker_prc.start()
