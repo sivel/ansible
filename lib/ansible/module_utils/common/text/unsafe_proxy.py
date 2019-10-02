@@ -49,6 +49,13 @@
 # Original Python Recipe for Proxy:
 # http://code.activestate.com/recipes/496741-object-proxying/
 # Author: Tomer Filiba
+#
+# This code is meaningless for modules at this point, as the function of
+# the unsafe "proxy" is to prevent templating by the core engine.
+#
+# This file exists within module_utils so that ansible.module_utils._text
+# can have a dependency on it, for maintaining unsafe designation persisting
+# across type conversions.
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
