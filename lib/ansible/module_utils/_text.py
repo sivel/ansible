@@ -35,7 +35,7 @@
 import codecs
 
 from ansible.module_utils.six import PY3, text_type, binary_type
-from ansible.module_utils.common.text.unsafe_proxy import AnsibleUnsafe, AnsibleUnsafeText, AnsibleUnsafeBytes, wrap_var
+from ansible.module_utils.common.text.unsafe import AnsibleUnsafe, AnsibleUnsafeText, AnsibleUnsafeBytes, wrap_var
 
 try:
     codecs.lookup_error('surrogateescape')
