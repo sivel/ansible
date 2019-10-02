@@ -249,7 +249,7 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
         # to decode.
         ret = obj.decode(encoding, errors)
         if unsafe:
-            return AnsibleUnsafeText(obj)
+            return AnsibleUnsafeText(ret)
         return ret
 
     # Note: We do these last even though we have to call to_text again on the
