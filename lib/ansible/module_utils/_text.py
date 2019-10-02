@@ -34,8 +34,6 @@
 """
 import codecs
 
-from functools import wraps
-
 from ansible.module_utils.six import PY3, text_type, binary_type
 from ansible.module_utils.common.text.unsafe_proxy import AnsibleUnsafe, AnsibleUnsafeText, AnsibleUnsafeBytes, wrap_var
 
