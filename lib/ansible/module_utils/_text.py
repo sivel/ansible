@@ -34,8 +34,10 @@
 """
 import codecs
 
-from ansible.module_utils.six import PY3, text_type, binary_type
+from functools import wraps
 
+from ansible.module_utils.six import PY3, text_type, binary_type
+from ansible.module_utils.common.text.unsafe_proxy import AnsibleUnsafe, AnsibleUnsafeText, AnsibleUnsafeBytes, wrap_var
 
 try:
     codecs.lookup_error('surrogateescape')
@@ -116,6 +118,8 @@ def to_bytes(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
     if isinstance(obj, binary_type):
         return obj
 
+    unsafe = hasattr(obj, '__UNSAFE__')
+
     # We're given a text string
     # If it has surrogates, we know because it will decode
     original_errors = errors
@@ -130,7 +134,10 @@ def to_bytes(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
     if isinstance(obj, text_type):
         try:
             # Try this first as it's the fastest
-            return obj.encode(encoding, errors)
+            ret = obj.encode(encoding, errors)
+            if unsafe:
+                return AnsibleUnsafeBytes(ret)
+            return ret
         except UnicodeEncodeError:
             if original_errors in (None, 'surrogate_then_replace'):
                 # We should only reach this if encoding was non-utf8 original_errors was
@@ -139,7 +146,10 @@ def to_bytes(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
                 # Slow but works
                 return_string = obj.encode('utf-8', 'surrogateescape')
                 return_string = return_string.decode('utf-8', 'replace')
-                return return_string.encode(encoding, 'replace')
+                ret = return_string.encode(encoding, 'replace')
+                if unsafe:
+                    return AnsibleUnsafeBytes(ret)
+                return ret
             raise
 
     # Note: We do these last even though we have to call to_bytes again on the
@@ -163,7 +173,10 @@ def to_bytes(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
     else:
         raise TypeError('Invalid value %s for to_bytes\' nonstring parameter' % nonstring)
 
-    return to_bytes(value, encoding, errors)
+    ret = to_bytes(value, encoding, errors)
+    if unsafe:
+        return AnsibleUnsafeBytes(ret)
+    return ret
 
 
 def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
@@ -220,6 +233,8 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
     if isinstance(obj, text_type):
         return obj
 
+    unsafe = hasattr(obj, '__UNSAFE__')
+
     if errors in _COMPOSED_ERROR_HANDLERS:
         if HAS_SURROGATEESCAPE:
             errors = 'surrogateescape'
@@ -232,7 +247,10 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
         # Note: We don't need special handling for surrogate_then_replace
         # because all bytes will either be made into surrogates or are valid
         # to decode.
-        return obj.decode(encoding, errors)
+        ret = obj.decode(encoding, errors)
+        if unsafe:
+            return AnsibleUnsafeText(obj)
+        return ret
 
     # Note: We do these last even though we have to call to_text again on the
     # value because we're optimizing the common case
@@ -254,7 +272,10 @@ def to_text(obj, encoding='utf-8', errors=None, nonstring='simplerepr'):
     else:
         raise TypeError('Invalid value %s for to_text\'s nonstring parameter' % nonstring)
 
-    return to_text(value, encoding, errors)
+    ret = to_text(value, encoding, errors)
+    if unsafe:
+        return AnsibleUnsafeText(ret)
+    return ret
 
 
 #: :py:func:`to_native`
@@ -276,3 +297,11 @@ if PY3:
     to_native = to_text
 else:
     to_native = to_bytes
+
+
+def to_unsafe_bytes(*args, **kwargs):
+    return wrap_var(to_bytes(*args, **kwargs))
+
+
+def to_unsafe_text(*args, **kwargs):
+    return wrap_var(to_text(*args, **kwargs))
