@@ -61,16 +61,45 @@ from ansible.module_utils.six import string_types, binary_type, text_type
 __all__ = ['AnsibleUnsafe', 'wrap_var']
 
 
+_UNSAFE_METHODS = frozenset(('capitalize', 'casefold', 'center', 'expandtabs', 'format', 'format_map',
+                             'join', 'ljust', 'lower', 'lstrip', 'partition', 'replace', 'rsplit', 'rpartition',
+                             'rjust', 'rstrip', 'split', 'splitlines', 'strip', 'swapcase', 'title', 'translate',
+                             'upper', 'zfill'))
+
+
+def _rewrap_return(attr, func, cls):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        if attr in ('format', 'format_map'):
+            raise NotImplementedError('%s is not available on unsafe objects' % attr)
+        elif attr in ('partition', 'rsplit', 'rpartition', 'split', 'splitlines'):
+            return [cls(r) for r in func(*args, **kwargs)]
+        return cls(func(*args, **kwargs))
+    return inner
+
+
+def _rewrap_unsafe_methods(cls):
+    for attr in _UNSAFE_METHODS:
+        try:
+            func = getattr(cls, attr)
+        except AttributeError:
+            continue
+        setattr(cls, attr, _rewrap_return(attr, func, cls))
+    return cls
+
+
 class AnsibleUnsafe(object):
     __UNSAFE__ = True
 
 
+@_rewrap_unsafe_methods
 class AnsibleUnsafeBytes(binary_type, AnsibleUnsafe):
     def decode(self, *args, **kwargs):
         """Wrapper method to ensure type conversions maintain unsafe context"""
         return AnsibleUnsafeText(super(AnsibleUnsafeBytes, self).decode(*args, **kwargs))
 
 
+@_rewrap_unsafe_methods
 class AnsibleUnsafeText(text_type, AnsibleUnsafe):
     def encode(self, *args, **kwargs):
         """Wrapper method to ensure type conversions maintain unsafe context"""
