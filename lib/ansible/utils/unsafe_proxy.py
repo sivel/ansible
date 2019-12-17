@@ -53,6 +53,8 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import functools
+
 from ansible.module_utils._text import to_bytes, to_text
 from ansible.module_utils.common._collections_compat import Mapping, MutableSequence, Set
 from ansible.module_utils.six import string_types, binary_type, text_type
