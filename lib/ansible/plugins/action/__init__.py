@@ -906,14 +906,22 @@ class ActionBase(with_metaclass(ABCMeta, object)):
             cmd = " ".join(to_text(x) for x in async_cmd)
 
         elif self._task.remote_modules:
-            if module_style == 'new':
-                dotted_path = 'ansible.modules.%s' % os.path.splitext(module_path)[0].split('/ansible/modules/')[1].replace('/', '.')
+            data = json.dumps({
+                'module_name': module_name,
+                'collections': self._task.collections,
+            })
 
+            if module_style == 'new':
                 in_data = to_bytes(json.dumps(dict(ANSIBLE_MODULE_ARGS=module_args)))
 
-                cmd = self._connection._shell.build_module_command(environment_string, '%s -m' % shebang, dotted_path, arg_path=args_file_path)
+                cmd = self._connection._shell.build_module_command(
+                    environment_string,
+                    '%s -m ansible.utils._launch_module' % shebang,
+                    data,
+                    arg_path=args_file_path
+                )
             else:
-                raise AnsibleError('Remote modules currently only supports new style python modules')
+                display.vvv('Remote modules currently only supports new style python modules')
 
         else:
 

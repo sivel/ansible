@@ -624,7 +624,7 @@ class Base(FieldAttributeBase):
     _become_user = FieldAttribute(isa='string', default=context.cliargs_deferred_get('become_user'))
     _become_flags = FieldAttribute(isa='string', default=context.cliargs_deferred_get('become_flags'))
     _become_exe = FieldAttribute(isa='string', default=context.cliargs_deferred_get('become_exe'))
-    
+
     _remote_modules = FieldAttribute(isa='bool')
 
     # used to hold sudo/su stuff
