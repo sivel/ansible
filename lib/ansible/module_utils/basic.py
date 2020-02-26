@@ -79,6 +79,8 @@ except ImportError:
 # Python2 & 3 way to get NoneType
 NoneType = type(None)
 
+from ansible.module_utils.ansible_release import __version__
+
 from ._text import to_native, to_bytes, to_text
 from ansible.module_utils.common.text.converters import (
     jsonify,
@@ -636,6 +638,9 @@ class AnsibleModule(object):
         self._check_locale()
 
         self._check_arguments()
+
+        if __version__ != self.ansible_version:
+            self.fail_json(msg='ANSIBLE VERSION MISMATCH %r != %r' % (__version__, self.ansible_version))
 
         # check exclusive early
         if not bypass_checks:
