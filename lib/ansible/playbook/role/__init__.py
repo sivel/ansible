@@ -94,8 +94,8 @@ def hash_params(params):
 
 class Role(Base, Conditional, Taggable, CollectionSearch):
 
-    _delegate_to = FieldAttribute(isa='string')
-    _delegate_facts = FieldAttribute(isa='bool')
+    delegate_to = FieldAttribute('delegate_to', isa='string')
+    delegate_facts = FieldAttribute('delegate_facts', isa='bool')
 
     def __init__(self, play=None, from_files=None, from_include=False):
         self._role_name = None

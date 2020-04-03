@@ -34,8 +34,8 @@ from ansible.template import Templar
 
 class PlaybookInclude(Base, Conditional, Taggable):
 
-    _import_playbook = FieldAttribute(isa='string')
-    _vars = FieldAttribute(isa='dict', default=dict)
+    import_playbook = FieldAttribute('import_playbook', isa='string')
+    vars = FieldAttribute('vars', isa='dict', default=dict)
 
     @staticmethod
     def load(data, basedir, variable_manager=None, loader=None):

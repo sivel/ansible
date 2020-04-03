@@ -49,7 +49,7 @@ class TaskInclude(Task):
     # =================================================================================
     # ATTRIBUTES
 
-    _static = FieldAttribute(isa='bool', default=None)
+    static = FieldAttribute('static', isa='bool', default=None)
 
     def __init__(self, block=None, role=None, task_include=None):
         super(TaskInclude, self).__init__(block=block, role=role, task_include=task_include)

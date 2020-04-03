@@ -84,56 +84,56 @@ class PlayContext(Base):
     '''
 
     # base
-    _module_compression = FieldAttribute(isa='string', default=C.DEFAULT_MODULE_COMPRESSION)
-    _shell = FieldAttribute(isa='string')
-    _executable = FieldAttribute(isa='string', default=C.DEFAULT_EXECUTABLE)
+    module_compression = FieldAttribute('module_compression', isa='string', default=C.DEFAULT_MODULE_COMPRESSION)
+    shell = FieldAttribute('shell', isa='string')
+    executable = FieldAttribute('executable', isa='string', default=C.DEFAULT_EXECUTABLE)
 
     # connection fields, some are inherited from Base:
     # (connection, port, remote_user, environment, no_log)
-    _remote_addr = FieldAttribute(isa='string')
-    _password = FieldAttribute(isa='string')
-    _timeout = FieldAttribute(isa='int', default=C.DEFAULT_TIMEOUT)
-    _connection_user = FieldAttribute(isa='string')
-    _private_key_file = FieldAttribute(isa='string', default=C.DEFAULT_PRIVATE_KEY_FILE)
-    _pipelining = FieldAttribute(isa='bool', default=C.ANSIBLE_PIPELINING)
+    remote_addr = FieldAttribute('remote_addr', isa='string')
+    password = FieldAttribute('password', isa='string')
+    timeout = FieldAttribute('timeout', isa='int', default=C.DEFAULT_TIMEOUT)
+    connection_user = FieldAttribute('connection_user', isa='string')
+    private_key_file = FieldAttribute('private_key_file', isa='string', default=C.DEFAULT_PRIVATE_KEY_FILE)
+    pipelining = FieldAttribute('pipelining', isa='bool', default=C.ANSIBLE_PIPELINING)
 
     # networking modules
-    _network_os = FieldAttribute(isa='string')
+    network_os = FieldAttribute('network_os', isa='string')
 
     # docker FIXME: remove these
-    _docker_extra_args = FieldAttribute(isa='string')
+    docker_extra_args = FieldAttribute('docker_extra_args', isa='string')
 
     # ssh # FIXME: remove these
-    _ssh_executable = FieldAttribute(isa='string', default=C.ANSIBLE_SSH_EXECUTABLE)
-    _ssh_args = FieldAttribute(isa='string', default=C.ANSIBLE_SSH_ARGS)
-    _ssh_common_args = FieldAttribute(isa='string')
-    _sftp_extra_args = FieldAttribute(isa='string')
-    _scp_extra_args = FieldAttribute(isa='string')
-    _ssh_extra_args = FieldAttribute(isa='string')
-    _ssh_transfer_method = FieldAttribute(isa='string', default=C.DEFAULT_SSH_TRANSFER_METHOD)
+    ssh_executable = FieldAttribute('ssh_executable', isa='string', default=C.ANSIBLE_SSH_EXECUTABLE)
+    ssh_args = FieldAttribute('ssh_args', isa='string', default=C.ANSIBLE_SSH_ARGS)
+    ssh_common_args = FieldAttribute('ssh_common_args', isa='string')
+    sftp_extra_args = FieldAttribute('sftp_extra_args', isa='string')
+    scp_extra_args = FieldAttribute('scp_extra_args', isa='string')
+    ssh_extra_args = FieldAttribute('ssh_extra_args', isa='string')
+    ssh_transfer_method = FieldAttribute('ssh_transfer_method', isa='string', default=C.DEFAULT_SSH_TRANSFER_METHOD)
 
     # ???
-    _connection_lockfd = FieldAttribute(isa='int')
+    connection_lockfd = FieldAttribute('connection_lockfd', isa='int')
 
     # privilege escalation fields
-    _become = FieldAttribute(isa='bool')
-    _become_method = FieldAttribute(isa='string')
-    _become_user = FieldAttribute(isa='string')
-    _become_pass = FieldAttribute(isa='string')
-    _become_exe = FieldAttribute(isa='string', default=C.DEFAULT_BECOME_EXE)
-    _become_flags = FieldAttribute(isa='string', default=C.DEFAULT_BECOME_FLAGS)
-    _prompt = FieldAttribute(isa='string')
+    become = FieldAttribute('become', isa='bool')
+    become_method = FieldAttribute('become_method', isa='string')
+    become_user = FieldAttribute('become_user', isa='string')
+    become_pass = FieldAttribute('become_pass', isa='string')
+    become_exe = FieldAttribute('become_exe', isa='string', default=C.DEFAULT_BECOME_EXE)
+    become_flags = FieldAttribute('become_flags', isa='string', default=C.DEFAULT_BECOME_FLAGS)
+    prompt = FieldAttribute('prompt', isa='string')
 
     # general flags
-    _verbosity = FieldAttribute(isa='int', default=0)
-    _only_tags = FieldAttribute(isa='set', default=set)
-    _skip_tags = FieldAttribute(isa='set', default=set)
+    verbosity = FieldAttribute('verbosity', isa='int', default=0)
+    only_tags = FieldAttribute('only_tags', isa='set', default=set)
+    skip_tags = FieldAttribute('skip_tags', isa='set', default=set)
 
-    _start_at_task = FieldAttribute(isa='string')
-    _step = FieldAttribute(isa='bool', default=False)
+    start_at_task = FieldAttribute('start_at_task', isa='string')
+    step = FieldAttribute('step', isa='bool', default=False)
 
     # "PlayContext.force_handlers should not be used, the calling code should be using play itself instead"
-    _force_handlers = FieldAttribute(isa='bool', default=False)
+    force_handlers = FieldAttribute('force_handlers', isa='bool', default=False)
 
     def __init__(self, play=None, passwords=None, connection_lockfd=None):
         # Note: play is really not optional.  The only time it could be omitted is when we create

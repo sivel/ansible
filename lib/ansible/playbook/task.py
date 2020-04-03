@@ -68,25 +68,25 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
     # inheritance is only triggered if the 'current value' is None,
     # default can be set at play/top level object and inheritance will take it's course.
 
-    _args = FieldAttribute(isa='dict', default=dict)
-    _action = FieldAttribute(isa='string')
+    args = FieldAttribute('args', isa='dict', default=dict)
+    action = FieldAttribute('action', isa='string')
 
-    _async_val = FieldAttribute(isa='int', default=0, alias='async')
-    _changed_when = FieldAttribute(isa='list', default=list)
-    _delay = FieldAttribute(isa='int', default=5)
-    _delegate_to = FieldAttribute(isa='string')
-    _delegate_facts = FieldAttribute(isa='bool')
-    _failed_when = FieldAttribute(isa='list', default=list)
-    _loop = FieldAttribute()
-    _loop_control = FieldAttribute(isa='class', class_type=LoopControl, inherit=False)
-    _notify = FieldAttribute(isa='list')
-    _poll = FieldAttribute(isa='int', default=C.DEFAULT_POLL_INTERVAL)
-    _register = FieldAttribute(isa='string', static=True)
-    _retries = FieldAttribute(isa='int', default=3)
-    _until = FieldAttribute(isa='list', default=list)
+    async_val = FieldAttribute('async_val', isa='int', default=0, alias='async')
+    changed_when = FieldAttribute('changed_when', isa='list', default=list)
+    delay = FieldAttribute('delay', isa='int', default=5)
+    delegate_to = FieldAttribute('delegate_to', isa='string')
+    delegate_facts = FieldAttribute('delegate_facts', isa='bool')
+    failed_when = FieldAttribute('failed_when', isa='list', default=list)
+    loop = FieldAttribute('loop', )
+    loop_control = FieldAttribute('loop_control', isa='class', class_type=LoopControl, inherit=False)
+    notify = FieldAttribute('notify', isa='list')
+    poll = FieldAttribute('poll', isa='int', default=C.DEFAULT_POLL_INTERVAL)
+    register = FieldAttribute('register', isa='string', static=True)
+    retries = FieldAttribute('retries', isa='int', default=3)
+    until = FieldAttribute('until', isa='list', default=list)
 
     # deprecated, used to be loop and loop_args but loop has been repurposed
-    _loop_with = FieldAttribute(isa='string', private=True, inherit=False)
+    loop_with = FieldAttribute('loop_with', isa='string', private=True, inherit=False)
 
     def __init__(self, block=None, role=None, task_include=None):
         ''' constructors a task, without the Task.load classmethod, it will be pretty blank '''

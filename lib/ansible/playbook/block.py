@@ -33,17 +33,17 @@ from ansible.utils.sentinel import Sentinel
 class Block(Base, Conditional, CollectionSearch, Taggable):
 
     # main block fields containing the task lists
-    _block = FieldAttribute(isa='list', default=list, inherit=False)
-    _rescue = FieldAttribute(isa='list', default=list, inherit=False)
-    _always = FieldAttribute(isa='list', default=list, inherit=False)
+    block = FieldAttribute('block', isa='list', default=list, inherit=False)
+    rescue = FieldAttribute('rescue', isa='list', default=list, inherit=False)
+    always = FieldAttribute('always', isa='list', default=list, inherit=False)
 
     # other fields
-    _delegate_to = FieldAttribute(isa='string')
-    _delegate_facts = FieldAttribute(isa='bool')
+    delegate_to = FieldAttribute('delegate_to', isa='string')
+    delegate_facts = FieldAttribute('delegate_facts', isa='bool')
 
     # for future consideration? this would be functionally
     # similar to the 'else' clause for exceptions
-    # _otherwise = FieldAttribute(isa='list')
+    # otherwise = FieldAttribute('otherwise', isa='list')
 
     def __init__(self, play=None, parent_block=None, role=None, task_include=None, use_handlers=False, implicit=False):
         self._play = play

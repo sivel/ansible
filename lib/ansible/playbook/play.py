@@ -53,33 +53,33 @@ class Play(Base, Taggable, CollectionSearch):
     """
 
     # =================================================================================
-    _hosts = FieldAttribute(isa='list', required=True, listof=string_types, always_post_validate=True, priority=-1)
+    hosts = FieldAttribute('hosts', isa='list', required=True, listof=string_types, always_post_validate=True, priority=-1)
 
     # Facts
-    _gather_facts = FieldAttribute(isa='bool', default=None, always_post_validate=True)
-    _gather_subset = FieldAttribute(isa='list', default=(lambda: C.DEFAULT_GATHER_SUBSET), listof=string_types, always_post_validate=True)
-    _gather_timeout = FieldAttribute(isa='int', default=C.DEFAULT_GATHER_TIMEOUT, always_post_validate=True)
-    _fact_path = FieldAttribute(isa='string', default=C.DEFAULT_FACT_PATH)
+    gather_facts = FieldAttribute('gather_facts', isa='bool', default=None, always_post_validate=True)
+    gather_subset = FieldAttribute('gather_subset', isa='list', default=(lambda: C.DEFAULT_GATHER_SUBSET), listof=string_types, always_post_validate=True)
+    gather_timeout = FieldAttribute('gather_timeout', isa='int', default=C.DEFAULT_GATHER_TIMEOUT, always_post_validate=True)
+    fact_path = FieldAttribute('fact_path', isa='string', default=C.DEFAULT_FACT_PATH)
 
     # Variable Attributes
-    _vars_files = FieldAttribute(isa='list', default=list, priority=99)
-    _vars_prompt = FieldAttribute(isa='list', default=list, always_post_validate=False)
+    vars_files = FieldAttribute('vars_files', isa='list', default=list, priority=99)
+    vars_prompt = FieldAttribute('vars_prompt', isa='list', default=list, always_post_validate=False)
 
     # Role Attributes
-    _roles = FieldAttribute(isa='list', default=list, priority=90)
+    roles = FieldAttribute('roles', isa='list', default=list, priority=90)
 
     # Block (Task) Lists Attributes
-    _handlers = FieldAttribute(isa='list', default=list)
-    _pre_tasks = FieldAttribute(isa='list', default=list)
-    _post_tasks = FieldAttribute(isa='list', default=list)
-    _tasks = FieldAttribute(isa='list', default=list)
+    handlers = FieldAttribute('handlers', isa='list', default=list)
+    pre_tasks = FieldAttribute('pre_tasks', isa='list', default=list)
+    post_tasks = FieldAttribute('post_tasks', isa='list', default=list)
+    tasks = FieldAttribute('tasks', isa='list', default=list)
 
     # Flag/Setting Attributes
-    _force_handlers = FieldAttribute(isa='bool', default=context.cliargs_deferred_get('force_handlers'), always_post_validate=True)
-    _max_fail_percentage = FieldAttribute(isa='percent', always_post_validate=True)
-    _serial = FieldAttribute(isa='list', default=list, always_post_validate=True)
-    _strategy = FieldAttribute(isa='string', default=C.DEFAULT_STRATEGY, always_post_validate=True)
-    _order = FieldAttribute(isa='string', always_post_validate=True)
+    force_handlers = FieldAttribute('force_handlers', isa='bool', default=context.cliargs_deferred_get('force_handlers'), always_post_validate=True)
+    max_fail_percentage = FieldAttribute('max_fail_percentage', isa='percent', always_post_validate=True)
+    serial = FieldAttribute('serial', isa='list', default=list, always_post_validate=True)
+    strategy = FieldAttribute('strategy', isa='string', default=C.DEFAULT_STRATEGY, always_post_validate=True)
+    order = FieldAttribute('order', isa='string', always_post_validate=True)
 
     # =================================================================================
 

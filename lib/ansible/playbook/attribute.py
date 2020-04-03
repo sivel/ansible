@@ -21,6 +21,8 @@ __metaclass__ = type
 
 from copy import copy, deepcopy
 
+from ansible.utils.sentinel import Sentinel
+
 
 _CONTAINERS = frozenset(('list', 'dict', 'set'))
 
@@ -29,6 +31,7 @@ class Attribute:
 
     def __init__(
         self,
+        name,
         isa=None,
         private=False,
         default=None,
@@ -77,6 +80,7 @@ class Attribute:
             the attribute name may conflict with a Python reserved word.
         """
 
+        self.name = name
         self.isa = isa
         self.private = private
         self.default = default
@@ -93,6 +97,19 @@ class Attribute:
 
         if default is not None and self.isa in _CONTAINERS and not callable(default):
             raise TypeError('defaults for FieldAttribute may not be mutable, please provide a callable instead')
+
+    def __get__(self, obj, objtype):
+        val = getattr(obj, '_%s' % self.name, self.default)
+        #val = getattr(obj, '_attributes', {})[self.name]
+        if val is Sentinel:
+            val = self.default
+        if callable(val):
+            return val()
+        return val
+
+    def __set__(self, obj, val):
+        setattr(obj, '_%s' % self.name, val)
+        #getattr(obj, '_attributes')[self.name] = val
 
     def __eq__(self, other):
         return other.priority == self.priority

@@ -20,6 +20,7 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 from ansible.playbook import Play
+from ansible.playbook.attribute import Attribute
 from ansible.playbook.block import Block
 from ansible.playbook.role import Role
 from ansible.playbook.task import Task
@@ -42,11 +43,13 @@ def get_reserved_names(include_private=True):
         aobj = aclass()
 
         # build ordered list to loop over and dict with attributes
-        for attribute in aobj.__dict__['_attributes']:
-            if 'private' in attribute:
-                private.add(attribute)
+        for name, attribute in aobj.get_attributes():
+            if not isinstance(attribute, Attribute):
+                continue
+            if attribute.private:
+                private.add(name)
             else:
-                public.add(attribute)
+                public.add(name)
 
     # local_action is implicit with action
     if 'action' in public:

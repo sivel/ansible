@@ -113,8 +113,7 @@ class ModuleArgsParser:
         from ansible.playbook.task import Task
         from ansible.playbook.handler import Handler
         # store the valid Task/Handler attrs for quick access
-        self._task_attrs = set(Task._valid_attrs.keys())
-        self._task_attrs.update(set(Handler._valid_attrs.keys()))
+        self._task_attrs = set(a[0] for a in Task().get_attributes())
         # HACK: why are these not FieldAttributes on task with a post-validate to check usage?
         self._task_attrs.update(['local_action', 'static'])
         self._task_attrs = frozenset(self._task_attrs)

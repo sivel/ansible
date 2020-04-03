@@ -42,7 +42,7 @@ display = Display()
 
 class RoleDefinition(Base, Conditional, Taggable, CollectionSearch):
 
-    _role = FieldAttribute(isa='string')
+    role = FieldAttribute('role', isa='string')
 
     def __init__(self, play=None, role_basedir=None, variable_manager=None, loader=None, collection_list=None):
 

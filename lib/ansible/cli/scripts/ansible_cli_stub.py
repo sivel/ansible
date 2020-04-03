@@ -140,6 +140,7 @@ if __name__ == '__main__':
         display.error(to_text(e), wrap_text=False)
         exit_code = 1
     except KeyboardInterrupt:
+        raise
         display.error("User interrupted execution")
         exit_code = 99
     except Exception as e:
