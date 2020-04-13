@@ -349,6 +349,23 @@ def url_filename(url):
     return fn
 
 
+def content_range(rsp):
+    content_range = rsp.getheader('content-range').split()[1]
+    content_length = int(rsp.getheader('content-length'))
+    chunk, total = content_range.split('/')
+    if '-' not in chunk:
+        raise ValueError
+    max_resp = int(chunk.split('-')[1])
+    max_req  = max_resp + 1 + content_length
+    if total != '*':
+        total = int(total)
+        if max_req > total:
+            max_req = total
+    if max_resp + 1 == max_req:
+        raise ValueError
+    return max_resp + 1, max_req
+
+
 def url_get(module, url, dest, use_proxy, last_mod_time, force, timeout=10, headers=None, tmp_dest=''):
     """
     Download data from the url and store in a temporary file.
@@ -359,20 +376,6 @@ def url_get(module, url, dest, use_proxy, last_mod_time, force, timeout=10, head
         method = 'HEAD'
     else:
         method = 'GET'
-
-    start = datetime.datetime.utcnow()
-    rsp, info = fetch_url(module, url, use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout, headers=headers, method=method)
-    elapsed = (datetime.datetime.utcnow() - start).seconds
-
-    if info['status'] == 304:
-        module.exit_json(url=url, dest=dest, changed=False, msg=info.get('msg', ''), status_code=info['status'], elapsed=elapsed)
-
-    # Exceptions in fetch_url may result in a status -1, the ensures a proper error to the user in all cases
-    if info['status'] == -1:
-        module.fail_json(msg=info['msg'], url=url, dest=dest, elapsed=elapsed)
-
-    if info['status'] != 200 and not url.startswith('file:/') and not (url.startswith('ftp:/') and info.get('msg', '').startswith('OK')):
-        module.fail_json(msg="Request failed", status_code=info['status'], response=info['msg'], url=url, dest=dest, elapsed=elapsed)
 
     # create a temporary file and copy content to do checksum-based replacement
     if tmp_dest:
@@ -386,14 +389,50 @@ def url_get(module, url, dest, use_proxy, last_mod_time, force, timeout=10, head
     else:
         tmp_dest = module.tmpdir
 
+    part_files = []
+
+    start = datetime.datetime.utcnow()
+    rsp, info = fetch_url(module, url, use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout, headers=headers, method=method)
+    while info['status'] == 206:
+        f = tempfile.NamedTemporaryFile(dir=tmp_dest)
+        try:
+            shutil.copyfileobj(rsp, f)
+        except Exception as e:
+            f.close()
+            module.fail_json(msg="failed to create temporary content file: %s" % to_native(e), elapsed=elapsed, exception=traceback.format_exc())
+        else:
+            f.seek(0)
+            part_files.append(f)
+            try:
+                headers['Range'] = 'bytes=%s-%s' % content_range(rsp)
+            except ValueError:
+                break
+            rsp, info = fetch_url(module, url, use_proxy=use_proxy, force=force, last_mod_time=last_mod_time, timeout=timeout, headers=headers, method=method)
+
+    if not part_files:
+        part_files.append(rsp)
+
+    elapsed = (datetime.datetime.utcnow() - start).seconds
+
+    if info['status'] == 304:
+        module.exit_json(url=url, dest=dest, changed=False, msg=info.get('msg', ''), status_code=info['status'], elapsed=elapsed)
+
+    # Exceptions in fetch_url may result in a status -1, the ensures a proper error to the user in all cases
+    if info['status'] == -1:
+        module.fail_json(msg=info['msg'], url=url, dest=dest, elapsed=elapsed)
+
+    if info['status'] not in (200, 206) and not url.startswith('file:/') and not (url.startswith('ftp:/') and info.get('msg', '').startswith('OK')):
+        module.fail_json(msg="Request failed", status_code=info['status'], response=info['msg'], url=url, dest=dest, elapsed=elapsed)
+
     fd, tempname = tempfile.mkstemp(dir=tmp_dest)
 
     f = os.fdopen(fd, 'wb')
-    try:
-        shutil.copyfileobj(rsp, f)
-    except Exception as e:
-        os.remove(tempname)
-        module.fail_json(msg="failed to create temporary content file: %s" % to_native(e), elapsed=elapsed, exception=traceback.format_exc())
+    for part in part_files:
+        try:
+            shutil.copyfileobj(part, f)
+        except Exception as e:
+            os.remove(tempname)
+            module.fail_json(msg="failed to create temporary content file: %s" % to_native(e), elapsed=elapsed, exception=traceback.format_exc())
     f.close()
     rsp.close()
     return tempname, info
