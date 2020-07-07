@@ -207,6 +207,9 @@
   become: yes
   shell: "echo 'SHOW SERVER_VERSION' | psql --tuples-only --no-align --dbname postgres"
   register: postgres_version_resp
+  until: postgres_version_resp is successful
+  retries: 30
+  delay: 1
 
 - name: Print PostgreSQL server version
   debug:
