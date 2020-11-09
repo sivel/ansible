@@ -80,7 +80,6 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
     notify = FieldAttribute(isa='list')
     poll = FieldAttribute(isa='int', default=C.DEFAULT_POLL_INTERVAL)
     register = FieldAttribute(isa='string', static=True)
-    projection = FieldAttribute(isa='string', static=True)
     retries = FieldAttribute(isa='int', default=3)
     until = FieldAttribute(isa='list', default=list)
 
@@ -156,6 +155,36 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
         new_ds['loop'] = v
         # display.deprecated("with_ type loops are being phased out, use the 'loop' keyword instead",
         #                    version="2.10", collection_name='ansible.builtin')
+
+
+    def _validate_register(self, attr, name, value):
+        if isinstance(value, string_types):
+            setattr(self, name, {value: '.'})
+        else:
+            setattr(self, name, value)
+
+    def _post_validate_register(self, attr, value, templar):
+        if len(value) > 1 and value.get('default') is None:
+            display.warning(
+                'register will produce multiple variables, but "default" was not provided. '
+                'You will be unable to use this variable in per loop checks with "when", "changed_when",'
+                '"failed_when", or "until"'
+            )
+
+        if templar.is_template(value):
+            display.warning('"%s" is not templatable, but we found: %s, '
+                            'it will not be templated and will be used "as is".' % ('register', value))
+
+        return value
+
+    def get_default_register(self):
+        try:
+            if len(self.register) == 1:
+                return list(self.register)[0]
+            else:
+                return self.register.get('default')
+        except (TypeError, AttributeError):
+            return None
 
     def preprocess_data(self, ds):
         '''
