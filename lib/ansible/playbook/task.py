@@ -171,7 +171,6 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
         # display.deprecated("with_ type loops are being phased out, use the 'loop' keyword instead",
         #                    version="2.10", collection_name='ansible.builtin')
 
-
     def _validate_register(self, attr, name, value):
         if isinstance(value, string_types):
             setattr(self, name, {value: '.'})
