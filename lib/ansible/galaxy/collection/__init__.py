@@ -44,7 +44,7 @@ from ansible.utils.display import Display
 from ansible.utils.galaxy import scm_archive_collection
 from ansible.utils.hashing import secure_hash, secure_hash_s
 from ansible.utils.version import SemanticVersion
-from ansible.utils.yaml import safe_dump, safe_load
+from ansible.utils.yaml import yaml_dump, yaml_load
 
 urlparse = six.moves.urllib.parse.urlparse
 urldefrag = six.moves.urllib.parse.urldefrag
@@ -630,7 +630,7 @@ def download_collections(collections, output_path, apis, validate_certs, no_deps
             requirements_path = os.path.join(output_path, 'requirements.yml')
             display.display("Writing requirements.yml file of downloaded collections to '%s'" % requirements_path)
             with open(to_bytes(requirements_path, errors='surrogate_or_strict'), mode='wb') as req_fd:
-                req_fd.write(to_bytes(safe_dump({'collections': requirements}), errors='surrogate_or_strict'))
+                req_fd.write(to_bytes(yaml_dump({'collections': requirements}), errors='surrogate_or_strict'))
 
 
 def publish_collection(collection_path, api, wait, timeout):
@@ -889,7 +889,7 @@ def _get_galaxy_yml(b_galaxy_yml_path):
 
     try:
         with open(b_galaxy_yml_path, 'rb') as g_yaml:
-            galaxy_yml = safe_load(g_yaml)
+            galaxy_yml = yaml_load(g_yaml)
     except YAMLError as err:
         raise AnsibleError("Failed to parse the galaxy.yml at '%s' with the following error:\n%s"
                            % (to_native(b_galaxy_yml_path), to_native(err)))
