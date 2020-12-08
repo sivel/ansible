@@ -402,6 +402,9 @@ class TaskExecutor:
     def _project(self, templar, projections, result):
         ret = {}
         for register, projection in projections:
+            if not projection[1:]:
+                ret[register] = result
+                continue
             template = '{{ _projection%s }}' % projection[1:]
             new_vars = templar.available_variables.copy()
             new_vars['_projection'] = result
