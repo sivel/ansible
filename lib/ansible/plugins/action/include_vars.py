@@ -137,7 +137,7 @@ class ActionModule(ActionBase):
             result['message'] = err_msg
 
         result['ansible_included_var_files'] = self.included_files
-        result['ansible_facts'] = results
+        result['ansible_facts'] = self._templar.template(results)
         result['_ansible_no_log'] = not self.show_content
 
         return result

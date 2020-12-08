@@ -599,7 +599,7 @@ class Base(FieldAttributeBase):
     _remote_user = FieldAttribute(isa='string', default=context.cliargs_deferred_get('remote_user'))
 
     # variables
-    _vars = FieldAttribute(isa='dict', priority=100, inherit=False, static=True)
+    _vars = FieldAttribute(isa='dict', priority=100, inherit=False)
 
     # module default params
     _module_defaults = FieldAttribute(isa='list', extend=True, prepend=True)
@@ -628,3 +628,10 @@ class Base(FieldAttributeBase):
 
     # used to hold sudo/su stuff
     DEPRECATED_ATTRIBUTES = []
+
+    def _post_validate_vars(self, attr, value, templar):
+        # vars may have templating with undefined vars that can be overridden
+        # from a higher level such as extra_vars
+        # template as best we can, to aid in post_validating
+        value = templar.template(value, fail_on_undefined=False)
+        return value
