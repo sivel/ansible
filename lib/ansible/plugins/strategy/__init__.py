@@ -755,10 +755,6 @@ class StrategyBase:
                     del clean_copy['invocation']
 
                 for varname, projection in original_task.register.items():
-                    if varname == 'default':
-                        continue
-                    if projection[0] != '.':
-                        raise AnsibleError('"projection" must be a raw jinja2 statement, starting with "." representing the result to process')
                     template = '{{ _projection%s }}' % projection[1:]
                     all_vars = self._variable_manager.get_vars(play=iterator._play, host=original_host, task=original_task,
                                                                _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)

@@ -37,6 +37,7 @@ from ansible.playbook.taggable import Taggable
 from ansible.utils.collection_loader import AnsibleCollectionConfig
 from ansible.utils.display import Display
 from ansible.utils.sentinel import Sentinel
+from ansible.utils.vars import isidentifier
 
 __all__ = ['Task']
 
@@ -99,6 +100,8 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
         else:
             self._parent = block
 
+        self.default_register = None
+
         super(Task, self).__init__()
 
     def get_name(self, include_role_fqcn=True):
@@ -158,32 +161,17 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
 
     def _validate_register(self, attr, name, value):
         if isinstance(value, string_types):
-            setattr(self, name, {value: '.'})
-        else:
-            setattr(self, name, value)
+            self.default_register = value
+            value = {value: '.'}
+        setattr(self, name, value)
 
-    def _post_validate_register(self, attr, value, templar):
-        if len(value) > 1 and value.get('default') is None:
-            display.warning(
-                'register will produce multiple variables, but "default" was not provided. '
-                'You will be unable to use this variable in per loop checks with "when", "changed_when",'
-                '"failed_when", or "until"'
-            )
+        items = value.items() if value else []
+        for register, projection in items:
+            if not isidentifier(register) or register in ('ansible_loop_result', 'ansible_result'):
+                raise AnsibleError("Invalid variable name in 'register' specified: '%s'" % register)
 
-        if templar.is_template(value):
-            display.warning('"%s" is not templatable, but we found: %s, '
-                            'it will not be templated and will be used "as is".' % ('register', value))
-
-        return value
-
-    def get_default_register(self):
-        try:
-            if len(self.register) == 1:
-                return list(self.register)[0]
-            else:
-                return self.register.get('default')
-        except (TypeError, AttributeError):
-            return None
+            if projection[0] != '.':
+                raise AnsibleError('register projection must be a raw jinja2 statement, starting with "." representing the result to process')
 
     def preprocess_data(self, ds):
         '''
@@ -424,6 +412,7 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
         new_me.implicit = self.implicit
         new_me.resolved_action = self.resolved_action
         new_me._uuid = self._uuid
+        new_me.default_register = self.default_register
 
         return new_me
 
@@ -440,6 +429,7 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
 
             data['implicit'] = self.implicit
             data['resolved_action'] = self.resolved_action
+            data['default_register'] = self.default_register
 
         return data
 
@@ -471,6 +461,7 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
 
         self.implicit = data.get('implicit', False)
         self.resolved_action = data.get('resolved_action')
+        self.default_register = data.get('default_register')
 
         super(Task, self).deserialize(data)
 
