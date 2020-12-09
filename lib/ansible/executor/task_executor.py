@@ -608,7 +608,7 @@ class TaskExecutor:
             # preserve no log
             result["_ansible_no_log"] = self._play_context.no_log
 
-            if self._task.action not in C._ACTION_INCLUDE_VARS:
+            if self._task.action not in C._ACTION_WITH_CLEAN_FACTS:
                 result = wrap_var(result)
 
             # update the local copy of vars with the registered value, if specified,
@@ -669,7 +669,7 @@ class TaskExecutor:
             if 'changed' not in result:
                 result['changed'] = False
 
-            if self._task.action not in C._ACTION_INCLUDE_VARS:
+            if self._task.action not in C._ACTION_WITH_CLEAN_FACTS:
                 result = wrap_var(result)
 
             # re-update the local copy of vars with the registered value, if specified,
@@ -708,7 +708,7 @@ class TaskExecutor:
                 result['attempts'] = retries - 1
                 result['failed'] = True
 
-        if self._task.action not in C._ACTION_INCLUDE_VARS:
+        if self._task.action not in C._ACTION_WITH_CLEAN_FACTS:
             result = wrap_var(result)
 
         # do the final update of the local variables here, for both registered
