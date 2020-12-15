@@ -1,4 +1,2 @@
 bugfixes:
 - get_url - respect ``unsafe_writes`` (https://github.com/ansible/ansible/issues/72981)
-- atomic_move - Allow ``unsafe_writes`` fallback when EXDEV error encountered
-  (https://github.com/ansible/ansible/issues/72981)
