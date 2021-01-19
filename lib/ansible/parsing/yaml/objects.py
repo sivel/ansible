@@ -114,6 +114,25 @@ class AnsibleVaultEncryptedUnicode(Sequence, AnsibleBaseYAMLObject):
         self._ciphertext = to_bytes(ciphertext)
 
     @property
+    def __class__(self):
+        """Mimic text string in isinstance checks"""
+        return text_type
+
+    def __copy__(self):
+        """This object represents immutable data, just return it
+
+        This is necessary because of the ``__class__`` override
+        """
+        return self
+
+    def __deepcopy__(self, memo=None):
+        """This object represents immutable data, just return it
+
+        This is necessary because of the ``__class__`` override
+        """
+        return self
+
+    @property
     def data(self):
         if not self.vault:
             return to_text(self._ciphertext)
