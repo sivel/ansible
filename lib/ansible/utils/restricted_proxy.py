@@ -8,6 +8,7 @@ __metaclass__ = type
 from collections import namedtuple
 from functools import wraps
 from typing import Any, Callable, EXCLUDED_ATTRIBUTES, Generic, List, Protocol, T, Type, Union
+from typing import runtime_checkable  # pylint: disable=unused-import
 
 
 # Protocol isn't a valid type here

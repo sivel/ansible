@@ -59,6 +59,7 @@ class CallbackModule(CallbackBase):
         self._last_task_banner = None
         self._last_task_name = None
         self._task_type_cache = {}
+        self._strategy_lockstep = True
         super(CallbackModule, self).__init__()
 
     def set_options(self, task_keys=None, var_options=None, direct=None):
@@ -188,9 +189,9 @@ class CallbackModule(CallbackBase):
 
         # Preserve task name, as all vars may not be available for templating
         # when we need it later
-        if self._play.strategy == 'free':
-            # Explicitly set to None for strategy 'free' to account for any cached
-            # task title from a previous non-free play
+        if self._strategy_lockstep is False:
+            # Explicitly set to None for non-lockstep strategies to account for any cached
+            # task title from a previous lockstep play
             self._last_task_name = None
         else:
             self._last_task_name = task.get_name().strip()
@@ -254,6 +255,10 @@ class CallbackModule(CallbackBase):
             msg = u"PLAY [%s]%s" % (name, checkmsg)
 
         self._play = play
+        try:
+            self._strategy_lockstep = play.strategy_instance.LOCKSTEP
+        except AttributeError:
+            self._strategy_lockstep = True
 
         self._display.banner(msg)
 

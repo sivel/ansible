@@ -50,6 +50,7 @@ from ansible.playbook.task_include import TaskInclude
 from ansible.plugins import loader as plugin_loader
 from ansible.template import Templar
 from ansible.utils.display import Display
+from ansible.utils.restricted_proxy import Protocol, RestrictedInterface, runtime_checkable
 from ansible.utils.vars import combine_vars
 from ansible.vars.clean import strip_internal_keys, module_response_deepcopy
 
@@ -70,6 +71,15 @@ class StrategySentinel:
 
 _sentinel = StrategySentinel()
 
+
+@runtime_checkable
+class _RestrictedStrategyInterface(Protocol):
+    LOCKSTEP: bool
+    BYPASS_HOST_LOOP: bool
+    ANY_ERRORS_FATAL: bool
+
+
+RestrictedStrategyInterface = RestrictedInterface[_RestrictedStrategyInterface]
 
 def post_process_whens(result, task, templar):
 
@@ -184,6 +194,11 @@ class StrategyBase:
     # strategies to disable this and either forego supporting it or managing
     # the throttling internally (as `free` does)
     ALLOW_BASE_THROTTLING = True
+
+    # Features
+    LOCKSTEP = True
+    BYPASS_HOST_LOOP = True
+    ANY_ERRORS_FATAL = True
 
     def __init__(self, tqm):
         self._tqm = tqm

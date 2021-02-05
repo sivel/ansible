@@ -44,6 +44,7 @@ from ansible.vars.reserved import warn_if_reserved
 from ansible.utils.display import Display
 from ansible.utils.lock import lock_decorator
 from ansible.utils.multiprocessing import context as multiprocessing_context
+from ansible.utils.restricted_proxy import restricted_proxy
 
 
 __all__ = ['TaskQueueManager']
@@ -274,8 +275,6 @@ class TaskQueueManager:
             if hasattr(callback_plugin, 'set_play_context'):
                 callback_plugin.set_play_context(play_context)
 
-        self.send_callback('v2_playbook_on_play_start', new_play)
-
         # build the iterator
         iterator = PlayIterator(
             inventory=self._inventory,
@@ -293,6 +292,12 @@ class TaskQueueManager:
         strategy = strategy_loader.get(new_play.strategy, self)
         if strategy is None:
             raise AnsibleError("Invalid play strategy specified: %s" % new_play.strategy, obj=play._ds)
+        # FIXME: I despise imports in methods, and while I'd like to keep the interface with the class
+        # we probably need a standard about separating and naming them
+        from ansible.plugins.strategy import RestrictedStrategyInterface
+        new_play.strategy_instance = restricted_proxy(strategy, RestrictedStrategyInterface)
+
+        self.send_callback('v2_playbook_on_play_start', new_play)
 
         # Because the TQM may survive multiple play runs, we start by marking
         # any hosts as failed in the iterator here which may have been marked
