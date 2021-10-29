@@ -13,6 +13,7 @@
 
 - assert:
     that:
+      - ansible_result is not defined
       - result2.stdout is defined
       - stdout2.stdout is not defined
       - result2.stdout == stdout2
