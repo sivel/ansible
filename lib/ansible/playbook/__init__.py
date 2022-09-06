@@ -24,6 +24,7 @@ import os
 from ansible import constants as C
 from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text, to_native
+from ansible.module_utils.common.collections import Mapping
 from ansible.playbook.play import Play
 from ansible.playbook.playbook_include import PlaybookInclude
 from ansible.plugins.loader import add_all_plugin_dirs
@@ -70,6 +71,9 @@ class Playbook:
             ds = self._loader.load_from_file(os.path.basename(file_name))
         except UnicodeDecodeError as e:
             raise AnsibleParserError("Could not read playbook (%s) due to encoding issues: %s" % (file_name, to_native(e)))
+
+        if isinstance(ds, Mapping) and ds.get('plays'):
+            ds = ds['plays'] or []
 
         # check for errors and restore the basedir in case this error is caught and handled
         if ds is None:

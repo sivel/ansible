@@ -23,6 +23,19 @@ from ansible.parsing.vault import VaultLib, b_HEADER, is_encrypted, is_encrypted
 from ansible.utils.path import unfrackpath
 from ansible.utils.display import Display
 
+
+HAS_TOMLLIB = False
+try:
+    import tomllib  # type: ignore[import]
+    HAS_TOMLLIB = True
+except ImportError:
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+        HAS_TOMLLIB = True
+    except ImportError:
+        pass
+
+
 display = Display()
 
 
@@ -75,14 +88,22 @@ class DataLoader:
     def set_vault_secrets(self, vault_secrets):
         self._vault.secrets = vault_secrets
 
-    def load(self, data, file_name='<string>', show_content=True, json_only=False):
+    def load(self, data, file_name='<string>', show_content=True, json_only=False, toml_only=False):
         '''Backwards compat for now'''
+        if toml_only:
+            return tomllib.loads(data)
         return from_yaml(data, file_name, show_content, self._vault.secrets, json_only=json_only)
 
     def load_from_file(self, file_name, cache=True, unsafe=False, json_only=False):
         ''' Loads data from a file, which can contain either JSON or YAML.  '''
 
         file_name = self.path_dwim(file_name)
+        if os.path.splitext(file_name)[1] == '.toml':
+            if not HAS_TOMLLIB:
+                raise AnsibleError('Use of TOML files requires tomli or Python 3.11+')
+            is_toml = True
+        else:
+            is_toml = False
         display.debug("Loading data from %s" % file_name)
 
         # if the file has already been read in and cached, we'll
@@ -94,7 +115,7 @@ class DataLoader:
             (b_file_data, show_content) = self._get_file_contents(file_name)
 
             file_data = to_text(b_file_data, errors='surrogate_or_strict')
-            parsed_data = self.load(data=file_data, file_name=file_name, show_content=show_content, json_only=json_only)
+            parsed_data = self.load(data=file_data, file_name=file_name, show_content=show_content, json_only=json_only, toml_only=is_toml)
 
             # cache the file contents for next time
             self._FILE_CACHE[file_name] = parsed_data
