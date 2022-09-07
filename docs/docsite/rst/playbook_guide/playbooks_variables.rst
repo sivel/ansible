@@ -207,6 +207,52 @@ Registered variables are host-level variables. When you register a variable in a
 
 .. note:: If a task fails or is skipped, Ansible still registers a variable with a failure or skipped status, unless the task is skipped based on tags. See :ref:`tags` for information on adding and using tags.
 
+.. _projection:
+
+Multiple registers per task and data manipulation
+-------------------------------------------------
+
+.. versionadded:: fallible
+
+.. note:: This feature has not been included in a released version of ansible-core yet, and is a tech preview as part of fallible.
+
+This feature allows a playbook author to register multiple variables on a task, manipulate the data before registered to that variable, and provides implicit register names scoped to just the task.
+
+.. code-block:: yaml+jinja
+
+   - command: "echo two"
+     register:
+       result2: .
+       stdout2: ..stdout
+
+In the above example ``result2: .`` produces the same result as if using ``register: result2`` has historically provided. The ``stdout2: ..stdout`` performs jinja2 evaluation on the result represented by the first ``.`` and accesses the ``stdout`` attribute or key.
+
+This is roughly equivalent to performing these 2 tasks:
+
+.. code-block:: yaml+jinja
+
+   - command: "echo two"
+     register: result2
+
+   - set_fact:
+       stdout2: '{{ result2.stdout }}'
+
+In addition to this functionality, this feature offers 2 implicit register variable names scoped to the task for use in ``when``, ``changed_when``, ``failed_when``, and ``until``.
+
+.. code-block:: yaml+jinja
+
+   - command: "echo two"
+     changed_when: ansible_result.stdout_lines|first == 'not two'
+
+   - command: "echo {{ item }}"
+     loop:
+       - one
+       - two
+       - three
+     changed_when: ansible_loop_result.stdout_lines|first == 'three'
+
+The ``ansible_result`` variable contains the full result of the task, whereas ``ansible_loop_result`` is the result of individual loop iterations.
+
 .. _accessing_complex_variable_data:
 
 Referencing nested variables
