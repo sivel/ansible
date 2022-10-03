@@ -253,6 +253,8 @@ In addition to this functionality, this feature offers 2 implicit register varia
 
 The ``ansible_result`` variable contains the full result of the task, whereas ``ansible_loop_result`` is the result of individual loop iterations.
 
+.. note:: ``add_host`` and ``group_by`` do not support register projections when used in a loop.
+
 .. _accessing_complex_variable_data:
 
 Referencing nested variables
