@@ -673,20 +673,25 @@ class StrategyBase:
                             all_task_vars = combine_vars(found_task_vars, item_vars)
                         else:
                             all_task_vars = found_task_vars
-                        all_task_vars[original_task.register] = wrap_var(result_item)
-                        post_process_whens(result_item, original_task, handler_templar, all_task_vars)
-                        if original_task.loop or original_task.loop_with:
-                            new_item_result = TaskResult(
-                                task_result._host,
-                                task_result._task,
-                                result_item,
-                                task_result._task_fields,
-                            )
-                            self._tqm.send_callback('v2_runner_item_on_ok', new_item_result)
-                            if result_item.get('changed', False):
-                                task_result._result['changed'] = True
-                            if result_item.get('failed', False):
-                                task_result._result['failed'] = True
+                        # This only works with the default register, and does not support projections
+                        # nor does this work with implicit registers
+                        if original_task.register and not original_task.default_register:
+                            display.warning('Cannot post process conditionals for add_host or group_by without a default register')
+                        else:
+                            all_task_vars[original_task.default_register] = wrap_var(result_item)
+                            post_process_whens(result_item, original_task, handler_templar, all_task_vars)
+                            if original_task.loop or original_task.loop_with:
+                                new_item_result = TaskResult(
+                                    task_result._host,
+                                    task_result._task,
+                                    result_item,
+                                    task_result._task_fields,
+                                )
+                                self._tqm.send_callback('v2_runner_item_on_ok', new_item_result)
+                                if result_item.get('changed', False):
+                                    task_result._result['changed'] = True
+                                if result_item.get('failed', False):
+                                    task_result._result['failed'] = True
 
                     if 'ansible_facts' in result_item and original_task.action not in C._ACTION_DEBUG:
                         # if delegated fact and we are delegating facts, we need to change target host for them
