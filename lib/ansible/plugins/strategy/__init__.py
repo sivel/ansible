@@ -766,10 +766,12 @@ class StrategyBase:
                                                                    _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)
                         all_vars['_projection'] = clean_copy
                         templar = Templar(loader=self._loader, variables=all_vars)
-                        clean_copy = templar.template(template)
+                        projection_result = templar.template(template)
+                    else:
+                        projection_result = clean_copy
 
                     for target_host in host_list:
-                        self._variable_manager.set_nonpersistent_facts(target_host, {varname: clean_copy})
+                        self._variable_manager.set_nonpersistent_facts(target_host, {varname: projection_result})
 
             self._pending_results -= 1
             if original_host.name in self._blocked_hosts:
