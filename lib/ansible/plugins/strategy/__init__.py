@@ -759,19 +759,12 @@ class StrategyBase:
                 if 'invocation' in clean_copy:
                     del clean_copy['invocation']
 
-                for varname, projection in original_task.register.items():
-                    if projection[1:]:
-                        template = '{{ _projection%s }}' % projection[1:]
-                        all_vars = self._variable_manager.get_vars(play=iterator._play, host=original_host, task=original_task,
-                                                                   _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)
-                        all_vars['_projection'] = clean_copy
-                        templar = Templar(loader=self._loader, variables=all_vars)
-                        projection_result = templar.template(template)
-                    else:
-                        projection_result = clean_copy
-
-                    for target_host in host_list:
-                        self._variable_manager.set_nonpersistent_facts(target_host, {varname: projection_result})
+                all_vars = self._variable_manager.get_vars(play=iterator._play, host=original_host, task=original_task,
+                                                           _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)
+                templar = Templar(loader=self._loader, variables=all_vars)
+                projection_result = original_task.project(templar, clean_copy)
+                for target_host in host_list:
+                    self._variable_manager.set_nonpersistent_facts(target_host, projection_result)
 
             self._pending_results -= 1
             if original_host.name in self._blocked_hosts:

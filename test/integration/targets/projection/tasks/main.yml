@@ -17,16 +17,20 @@
       - result2.stdout is defined
       - stdout2.stdout is not defined
       - result2.stdout == stdout2
+      - stdout2_r.stdout is not defined
+      - result2.stdout == stdout2_r
 
 - command: "echo three"
   register:
     stdout3: ..stdout_lines|first
+    stdout3_r: (ansible_result.stdout_lines)[0]
   changed_when: stdout3 == 'three'
 
 - assert:
     that:
       - stdout3.stdout is undefined
       - stdout3 == 'three'
+      - stdout3_r == 'three'
 
 - debug:
     msg: '{{ stdout3 is changed }}'

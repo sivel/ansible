@@ -19,6 +19,8 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import re
+
 from ansible import constants as C
 from ansible.errors import AnsibleError, AnsibleParserError, AnsibleUndefinedVariable, AnsibleAssertionError
 from ansible.module_utils._text import to_native
@@ -42,6 +44,8 @@ from ansible.utils.vars import isidentifier
 __all__ = ['Task']
 
 display = Display()
+
+_ANSIBLE_RESULT_RE = re.compile(r'\bansible_result\b')
 
 
 class Task(Base, Conditional, Taggable, CollectionSearch):
@@ -170,8 +174,11 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
             if not isidentifier(register) or register in ('ansible_loop_result', 'ansible_result'):
                 raise AnsibleError("Invalid variable name in 'register' specified: '%s'" % register)
 
-            if projection[0] != '.':
-                raise AnsibleError('register projection must be a raw jinja2 statement, starting with "." representing the result to process')
+            if projection[0] not in ('.', 'ansible_result') and not _ANSIBLE_RESULT_RE.search(projection):
+                raise AnsibleError(
+                    'register projection must be a raw jinja2 statement, containing "ansible_result" or starting '
+                    'with "." representing the result to process'
+                )
 
     def preprocess_data(self, ds):
         '''
@@ -375,6 +382,24 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
         and should not be templated during the regular post_validate step.
         '''
         return value
+
+    def project(self, templar, result):
+        """Handle register projections and return a dict of variable name, and value"""
+        ret = {}
+        projections = list(self.register.items()) if self.register else []
+        for register, projection in projections:
+            if projection in {'.', 'ansible_result'}:
+                ret[register] = result
+                continue
+            if projection[:1] == '.':
+                template = f'{{{{ ansible_result{projection[1:]} }}}}'
+            else:
+                template = f'{{{{ {projection} }}}}'
+            new_vars = templar.available_variables.copy()
+            new_vars['ansible_result'] = result
+            with templar.set_temporary_context(available_variables=new_vars):
+                ret[register] = templar.template(template)
+        return ret
 
     def get_vars(self):
         all_vars = dict()

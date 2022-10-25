@@ -672,7 +672,7 @@ class TaskExecutor:
 
                 vars_copy[register] = result
             if not from_loop:
-                vars_copy.update(self._project(templar, projections, result))
+                vars_copy.update(self._task.project(templar, result))
 
             if self._task.async_val > 0:
                 if self._task.poll > 0 and not result.get('skipped') and not result.get('failed'):
@@ -755,7 +755,7 @@ class TaskExecutor:
             if register:
                 vars_copy[register] = result
             if not from_loop:
-                vars_copy.update(self._project(templar, projections, result))
+                vars_copy.update(self._task.project(templar, result))
 
             # if we didn't skip this task, use the helpers to evaluate the changed/
             # failed_when properties
@@ -807,7 +807,7 @@ class TaskExecutor:
         if register:
             variables[register] = result
         if not from_loop:
-            variables.update(self._project(templar, projections, result))
+            variables.update(self._task.project(templar, result))
 
         if 'ansible_facts' in result and self._task.action not in C._ACTION_DEBUG:
             if self._task.action in C._ACTION_WITH_CLEAN_FACTS:
