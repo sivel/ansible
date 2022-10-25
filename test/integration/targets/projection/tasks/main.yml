@@ -9,6 +9,7 @@
   register:
     result2: .
     stdout2: ..stdout
+    stdout2_r: ansible_result.stdout
   changed_when: ansible_result.stdout_lines|first == 'not two'
 
 - assert:
