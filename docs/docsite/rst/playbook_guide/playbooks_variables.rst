@@ -239,7 +239,7 @@ This is roughly equivalent to performing these 2 tasks:
 
 There is a short hand of ``.`` for ``ansible_result``, but it must be the first character of the expression whereas ``ansible_result`` may appear anywhere within the expression:
 
-.. code-block:: yaml+jinja2
+.. code-block:: yaml+jinja
 
    - command: "echo two"
      register:
