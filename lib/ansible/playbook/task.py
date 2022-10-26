@@ -174,7 +174,12 @@ class Task(Base, Conditional, Taggable, CollectionSearch):
             if not isidentifier(register) or register in ('ansible_loop_result', 'ansible_result'):
                 raise AnsibleError("Invalid variable name in 'register' specified: '%s'" % register)
 
-            if projection[0] not in ('.', 'ansible_result') and not _ANSIBLE_RESULT_RE.search(projection):
+            # If no default register, but using projection syntax with a full result
+            # set the default register to the first occurance
+            if projection in {'.', 'ansible_result'} and self.default_register is None:
+                self.default_register = register
+
+            if projection[0] != '.' and not _ANSIBLE_RESULT_RE.search(projection):
                 raise AnsibleError(
                     'register projection must be a raw jinja2 statement, containing "ansible_result" or starting '
                     'with "." representing the result to process'
