@@ -216,16 +216,16 @@ Multiple registers per task and data manipulation
 
 .. note:: This feature has not been included in a released version of ansible-core yet, and is a tech preview as part of fallible.
 
-This feature allows a playbook author to register multiple variables on a task, manipulate the data before registered to that variable, and provides implicit register names scoped to just the task.
+This feature allows a playbook author to register multiple variables on a task, manipulate the data before registered to that variable, and provides implicit register names scoped to a single task. Individual loop results cannot be manipulated, this feature only applies to the final task result.
 
 .. code-block:: yaml+jinja
 
    - command: "echo two"
      register:
-       result2: .
-       stdout2: ..stdout
+       result2: ansible_result
+       stdout2: ansible_result.stdout
 
-In the above example ``result2: .`` produces the same result as if using ``register: result2`` has historically provided. The ``stdout2: ..stdout`` performs jinja2 evaluation on the result represented by the first ``.`` and accesses the ``stdout`` attribute or key.
+In the above example ``result2: ansible_result`` produces the same result as if using ``register: result2`` has historically provided. The ``stdout2: ansible_result.stdout`` performs jinja2 evaluation on the result represented by ``ansible_result`` and accesses the ``stdout`` attribute or key.
 
 This is roughly equivalent to performing these 2 tasks:
 
@@ -236,6 +236,15 @@ This is roughly equivalent to performing these 2 tasks:
 
    - set_fact:
        stdout2: '{{ result2.stdout }}'
+
+There is a short hand of ``.`` for ``ansible_result``, but it must be the first character of the expression whereas ``ansible_result`` may appear anywhere within the expression:
+
+.. code-block:: yaml+jinja2
+
+   - command: "echo two"
+     register:
+       result2: .
+       stdout2: ..stdout
 
 In addition to this functionality, this feature offers 2 implicit register variable names scoped to the task for use in ``when``, ``changed_when``, ``failed_when``, and ``until``.
 
@@ -251,9 +260,9 @@ In addition to this functionality, this feature offers 2 implicit register varia
        - three
      changed_when: ansible_loop_result.stdout_lines|first == 'three'
 
-The ``ansible_result`` variable contains the full result of the task, whereas ``ansible_loop_result`` is the result of individual loop iterations.
+The ``ansible_result`` variable contains the full result of the task, whereas ``ansible_loop_result`` is the result of individual loop iterations. Register expressions cannot reference ``ansible_loop_result``.
 
-.. note:: ``add_host`` and ``group_by`` do not support register projections when used in a loop.
+.. note:: ``add_host`` and ``group_by`` do not support register projections when used in a loop. The traditional ``register: result`` syntax must be used for these actions.
 
 .. _accessing_complex_variable_data:
 
