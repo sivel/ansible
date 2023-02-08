@@ -523,6 +523,13 @@
     checksum: 'sha256:http://localhost:{{ http_port }}/sha256sum_checksum_only.txt'
   register: result_sha256_checksum_only
 
+- name: Check that a non-default checksum works
+  get_url:
+    url: 'http://localhost:{{ http_port }}/27617.txt'
+    dest: '{{ remote_tmp_dir }}/27617sha3_512.txt'
+    checksum: sha3_512:f8cca1d98e750e2c2ab44954dc9f1b6e8e35ace71ffcc1cd21c7770eb8eccfbd77d40b2d7d145120efbbb781599294ccc6148c6cda1aa66146363e5fdddd2336
+    force: yes
+
 - stat:
     path: "{{ remote_tmp_dir }}/27617.txt"
   register: stat_result_sha256_checksum_only

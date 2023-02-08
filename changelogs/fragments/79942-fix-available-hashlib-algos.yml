@@ -1,0 +1,3 @@
+bugfixes:
+- module_utils - Address issue preventing all available hashlib algorithms from being accessible
+  (https://github.com/ansible/ansible/issues/79942)

@@ -113,7 +113,7 @@ try:
     import hashlib
 
     # python 2.7.9+ and 2.7.0+
-    for attribute in ('available_algorithms', 'algorithms'):
+    for attribute in ('algorithms_available', 'algorithms'):
         algorithms = getattr(hashlib, attribute, None)
         if algorithms:
             break
@@ -121,7 +121,9 @@ try:
         # python 2.5+
         algorithms = ('md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512')
     for algorithm in algorithms:
-        AVAILABLE_HASH_ALGORITHMS[algorithm] = getattr(hashlib, algorithm)
+        algo_func = getattr(hashlib, algorithm, None)
+        if algo_func:
+            AVAILABLE_HASH_ALGORITHMS[algorithm] = algo_func
 
     # we may have been able to import md5 but it could still not be available
     try:
