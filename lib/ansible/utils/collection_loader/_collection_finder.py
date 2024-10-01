@@ -732,20 +732,22 @@ class _AnsibleCollectionPkgLoader(_AnsibleCollectionPkgLoaderBase):
 
         if collection_name == 'ansible.builtin':
             # ansible.builtin is a synthetic collection, get its routing config from the Ansible distro
-            ansible_pkg_path = os.path.dirname(import_module('ansible').__file__)
-            metadata_path = os.path.join(ansible_pkg_path, 'config/ansible_builtin_runtime.yml')
-            with open(to_bytes(metadata_path), 'rb') as fd:
-                raw_routing = fd.read()
+            try:
+                from ansible.config.ansible_builtin_runtime import DATA as routing_dict
+            except ImportError:
+                ansible_pkg_path = os.path.dirname(import_module('ansible').__file__)
+                metadata_path = os.path.join(ansible_pkg_path, 'config/ansible_builtin_runtime.yml')
+                with open(to_bytes(metadata_path), 'rb') as fd:
+                    routing_dict = _meta_yml_to_dict(fd.read(), (collection_name, 'runtime.yml'))
         else:
             b_routing_meta_path = to_bytes(os.path.join(module.__path__[0], 'meta/runtime.yml'))
             if os.path.isfile(b_routing_meta_path):
                 with open(b_routing_meta_path, 'rb') as fd:
-                    raw_routing = fd.read()
+                    routing_dict = _meta_yml_to_dict(fd.read(), (collection_name, 'runtime.yml'))
             else:
-                raw_routing = ''
+                routing_dict = {}
         try:
-            if raw_routing:
-                routing_dict = _meta_yml_to_dict(raw_routing, (collection_name, 'runtime.yml'))
+            if routing_dict:
                 module._collection_meta = self._canonicalize_meta(routing_dict)
         except Exception as ex:
             raise ValueError('error parsing collection metadata: {0}'.format(to_native(ex)))

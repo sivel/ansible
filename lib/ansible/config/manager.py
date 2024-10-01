@@ -316,7 +316,14 @@ class ConfigManager(object):
 
         self._config_file = conf_file
 
-        self._base_defs = self._read_config_yaml_file(defs_file or ('%s/base.yml' % os.path.dirname(__file__)))
+        if defs_file is None:
+            try:
+                from ansible.config.base import DATA as _base_defs
+            except ImportError:
+                _base_defs = self._read_config_yaml_file('%s/base.yml' % os.path.dirname(__file__))
+        else:
+            _base_defs = self._read_config_yaml_file(defs_file)
+        self._base_defs = _base_defs
         _add_base_defs_deprecations(self._base_defs)
 
         if self._config_file is None:
