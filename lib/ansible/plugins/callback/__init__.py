@@ -647,3 +647,6 @@ class CallbackBase(AnsiblePlugin):
         .. versionadded:: 2.8
         """
         pass
+
+    def v2_runner_on_intermediate(self, host, task, data):
+        pass

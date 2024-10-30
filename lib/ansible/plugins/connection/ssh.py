@@ -388,7 +388,7 @@ from ansible.errors import (
 )
 from ansible.module_utils.six import PY3, text_type, binary_type
 from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
-from ansible.plugins.connection import ConnectionBase, BUFSIZE
+from ansible.plugins.connection import ConnectionBase, BUFSIZE, parse_intermediate
 from ansible.plugins.shell.powershell import _parse_clixml
 from ansible.utils.display import Display
 from ansible.utils.path import unfrackpath, makedirs_safe
@@ -563,6 +563,7 @@ class Connection(ConnectionBase):
 
     transport = 'ssh'
     has_pipelining = True
+    supports_streaming = True
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super(Connection, self).__init__(*args, **kwargs)
@@ -1077,6 +1078,11 @@ class Connection(ConnectionBase):
                             selector.unregister(p.stderr)
                         b_tmp_stderr += b_chunk
                         display.debug("stderr chunk (state=%s):\n>>>%s<<<\n" % (state, to_text(b_chunk)))
+
+                if state >= states.index('ready_to_send'):
+                    intermediates, b_tmp_stdout = parse_intermediate(b_tmp_stdout)
+                    for intermediate in intermediates:
+                        self.send_intermediate(intermediate)
 
                 # We examine the output line-by-line until we have negotiated any
                 # privilege escalation prompt and subsequent success/error message.

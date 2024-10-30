@@ -5,9 +5,13 @@
 from __future__ import annotations
 
 import collections.abc as c
+import errno
 import fcntl
 import io
+import json
 import os
+import re
+import selectors
 import shlex
 import typing as t
 
@@ -15,6 +19,7 @@ from abc import abstractmethod
 from functools import wraps
 
 from ansible import constants as C
+from ansible.module_utils.basic import RS, LF, INTERMEDIATE_END
 from ansible.module_utils.common.text.converters import to_bytes, to_text
 from ansible.playbook.play_context import PlayContext
 from ansible.plugins import AnsiblePlugin
@@ -31,8 +36,109 @@ __all__ = ['ConnectionBase', 'ensure_connect']
 
 BUFSIZE = 65536
 
+b_INTERMEDIATE_END = INTERMEDIATE_END.encode()
+INT_RE = re.compile(f'{RS}(.+){LF}'.encode())
+
+_SELECTOR: type[selectors.BaseSelector]
+if hasattr(selectors, 'PollSelector'):
+    _SELECTOR = selectors.PollSelector
+else:
+    _SELECTOR = selectors.SelectSelector
+
+
 P = t.ParamSpec('P')
 T = t.TypeVar('T')
+
+
+def parse_intermediate(stdout: bytes) -> tuple[list[dict], bytes]:
+    """Parse the standard intermediate result formats, excluding the termination record
+    and returning any remainder of the stdout for further processing.
+    """
+    end = 0
+    intermediate = []
+    for match in INT_RE.finditer(stdout):
+        start, end = match.span()
+        data = match.group(1)
+        if data.removesuffix(b'\r') != b_INTERMEDIATE_END:
+            intermediate.append(json.loads(data))
+        else:
+            break
+    return intermediate, stdout[end:]
+
+
+def readselect(
+        *files: int | t.IO[bytes],
+        timeout: float | int = 0.001,
+        require_ready: bool = False,
+        read_once: bool = False,
+) -> t.Generator[tuple[int | t.IO[bytes], bytes]]:
+    """Generic selectors implementation for reading from any number of files
+    as they are available for reading.
+
+    Can optionally require that every ``select`` return some events, and limit
+    to only a single select operation.
+    """
+
+    fobjs: list[t.IO[bytes]] = []
+    for file in files:
+        fobj: t.IO[bytes]
+        if isinstance(file, int):
+            fobj = os.fdopen(file, 'rb')
+        else:
+            fobj = file
+        fobjs.append(fobj)
+
+    with _SELECTOR() as selector:
+        for fobj in fobjs:
+            if fobj.closed:
+                continue
+            selector.register(fobj, selectors.EVENT_READ)
+
+        while selector.get_map():
+            ready = selector.select(timeout)
+            if require_ready and not ready:
+                raise TimeoutError
+            for key, events in ready:
+                chunk = os.read(key.fd, 32768)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    os.close(key.fd)
+                yield t.cast(t.IO[bytes], key.fileobj), chunk
+                if read_once:
+                    return
+
+
+def stdin_write(stdin: t.IO[bytes], input: bytes, close: bool = True) -> None:
+    """Roughly a copy of ``Popen._stdin_write`` for use without ``Popen.communicate``
+    """
+    if not input:
+        return
+
+    try:
+        stdin.write(input)
+    except BrokenPipeError:
+        pass  # communicate() must ignore broken pipe errors.
+    except OSError as exc:
+        if exc.errno == errno.EINVAL:
+            # bpo-19612, bpo-30418: On Windows, stdin.write() fails
+            # with EINVAL if the child process exited or if the child
+            # process is still running but closed the pipe.
+            pass
+        else:
+            raise
+
+    if not close:
+        return
+
+    try:
+        stdin.close()
+    except BrokenPipeError:
+        pass  # communicate() must ignore broken pipe errors.
+    except OSError as exc:
+        if exc.errno == errno.EINVAL:
+            pass
+        else:
+            raise
 
 
 def ensure_connect(
@@ -104,6 +210,8 @@ class ConnectionBase(AnsiblePlugin):
             self._shell = get_shell_plugin(shell_type=shell_type, executable=self._play_context.executable)
 
         self.become: BecomeBase | None = None
+
+        self.send_intermediate: c.Callable[[dict], None] | None = None
 
     @property
     def _new_stdin(self) -> io.TextIOWrapper | None:

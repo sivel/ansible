@@ -321,6 +321,7 @@ def add_output_options(parser):
                         help='condense output')
     parser.add_argument('-t', '--tree', dest='tree', default=None,
                         help='log output to this directory')
+    parser.add_argument('--stream', action='store_true', help='stream output')
 
 
 def add_runas_options(parser):

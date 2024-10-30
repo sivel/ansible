@@ -193,6 +193,10 @@ MODE_OPERATOR_RE = re.compile(r'[+=-]')
 USERS_RE = re.compile(r'^[ugo]+$')
 PERMS_RE = re.compile(r'^[rwxXstugo]*$')
 
+RS = '\x1e'
+LF = '\x0a'
+INTERMEDIATE_END = '{"intermediate": "end"}'
+
 
 #
 # Deprecated functions
@@ -390,6 +394,7 @@ class AnsibleModule(object):
         self._shell = None
         self._syslog_facility = 'LOG_USER'
         self._verbosity = 0
+        self.stream = True
         # May be used to set modifications to the environment for any
         # run_command invocation
         self.run_command_environ_update = {}
@@ -1396,40 +1401,41 @@ class AnsibleModule(object):
         for path in self.cleanup_files:
             self.cleanup(path)
 
-    def _return_formatted(self, kwargs):
+    def _return_formatted(self, kwargs, final=True):
 
         self.add_path_info(kwargs)
 
-        if 'invocation' not in kwargs:
-            kwargs['invocation'] = {'module_args': self.params}
+        if final:
+            if 'invocation' not in kwargs:
+                kwargs['invocation'] = {'module_args': self.params}
 
-        if 'warnings' in kwargs:
-            if isinstance(kwargs['warnings'], list):
-                for w in kwargs['warnings']:
-                    self.warn(w)
-            else:
-                self.warn(kwargs['warnings'])
+            if 'warnings' in kwargs:
+                if isinstance(kwargs['warnings'], list):
+                    for w in kwargs['warnings']:
+                        self.warn(w)
+                else:
+                    self.warn(kwargs['warnings'])
 
-        warnings = get_warning_messages()
-        if warnings:
-            kwargs['warnings'] = warnings
+            warnings = get_warning_messages()
+            if warnings:
+                kwargs['warnings'] = warnings
 
-        if 'deprecations' in kwargs:
-            if isinstance(kwargs['deprecations'], list):
-                for d in kwargs['deprecations']:
-                    if isinstance(d, SEQUENCETYPE) and len(d) == 2:
-                        self.deprecate(d[0], version=d[1])
-                    elif isinstance(d, Mapping):
-                        self.deprecate(d['msg'], version=d.get('version'), date=d.get('date'),
-                                       collection_name=d.get('collection_name'))
-                    else:
-                        self.deprecate(d)  # pylint: disable=ansible-deprecated-no-version
-            else:
-                self.deprecate(kwargs['deprecations'])  # pylint: disable=ansible-deprecated-no-version
+            if 'deprecations' in kwargs:
+                if isinstance(kwargs['deprecations'], list):
+                    for d in kwargs['deprecations']:
+                        if isinstance(d, SEQUENCETYPE) and len(d) == 2:
+                            self.deprecate(d[0], version=d[1])
+                        elif isinstance(d, Mapping):
+                            self.deprecate(d['msg'], version=d.get('version'), date=d.get('date'),
+                                           collection_name=d.get('collection_name'))
+                        else:
+                            self.deprecate(d)  # pylint: disable=ansible-deprecated-no-version
+                else:
+                    self.deprecate(kwargs['deprecations'])  # pylint: disable=ansible-deprecated-no-version
 
-        deprecations = get_deprecation_messages()
-        if deprecations:
-            kwargs['deprecations'] = deprecations
+            deprecations = get_deprecation_messages()
+            if deprecations:
+                kwargs['deprecations'] = deprecations
 
         # preserve bools/none from no_log
         # TODO: once python version on target high enough, dict comprehensions
@@ -1444,7 +1450,16 @@ class AnsibleModule(object):
         # return preserved
         kwargs.update(preserved)
 
-        print('\n%s' % self.jsonify(kwargs))
+        if final:
+            if self.stream:
+                print(f'{RS}{INTERMEDIATE_END}{LF}', end="", flush=True)
+            print(f'{LF if not self.stream else ""}{self.jsonify(kwargs)}')
+        else:
+            print(f'{RS}{self.jsonify(kwargs)}{LF}', end="", flush=True)
+
+    def send_intermediate(self, **kwargs):
+        if self.stream:
+            self._return_formatted(kwargs, final=False)
 
     def exit_json(self, **kwargs):
         """ return from the module, without error """
@@ -1976,9 +1991,11 @@ class AnsibleModule(object):
                         selector.unregister(key.fileobj)
                     elif key.fileobj == cmd.stdout:
                         stdout += b_chunk
+                        self.send_intermediate(stdout=b_chunk)
                         stdout_changed = True
                     elif key.fileobj == cmd.stderr:
                         stderr += b_chunk
+                        self.send_intermediate(stderr=b_chunk)
 
                 # if we're checking for prompts, do it now, but only if stdout
                 # actually changed since the last loop

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from ansible import constants as C
+from ansible import context
 from ansible.errors import AnsibleError, AnsibleParserError, AnsibleUndefinedVariable, AnsibleAssertionError
 from ansible.module_utils.common.sentinel import Sentinel
 from ansible.module_utils.common.text.converters import to_native
@@ -81,6 +82,7 @@ class Task(Base, Conditional, Taggable, CollectionSearch, Notifiable, Delegatabl
     register = NonInheritableFieldAttribute(isa='string', static=True)
     retries = NonInheritableFieldAttribute(isa='int')  # default is set in TaskExecutor
     until = NonInheritableFieldAttribute(isa='list', default=list)
+    stream = NonInheritableFieldAttribute(isa='bool', default=context.cliargs_deferred_get('stream', False))
 
     # deprecated, used to be loop and loop_args but loop has been repurposed
     loop_with = NonInheritableFieldAttribute(isa='string', private=True)

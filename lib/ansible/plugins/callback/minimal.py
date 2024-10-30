@@ -15,6 +15,8 @@ DOCUMENTATION = """
       - result_format_callback
 """
 
+import contextlib
+
 from ansible.plugins.callback import CallbackBase
 from ansible import constants as C
 
@@ -29,6 +31,11 @@ class CallbackModule(CallbackBase):
     CALLBACK_VERSION = 2.0
     CALLBACK_TYPE = 'stdout'
     CALLBACK_NAME = 'minimal'
+
+    def __init__(self):
+        super().__init__()
+        self._colors = set()
+        self._color_map = {}
 
     def _command_generic_msg(self, host, result, caption):
         """ output the result of a command run """
@@ -76,3 +83,23 @@ class CallbackModule(CallbackBase):
     def v2_on_file_diff(self, result):
         if 'diff' in result._result and result._result['diff']:
             self._display.display(self._get_diff(result._result['diff']))
+
+    def _get_colors(self):
+        if self._colors:
+            return self._colors
+
+        used = {'white', 'black', 'normal'}
+        for attr in dir(C):
+            if attr.startswith('COLOR_'):
+                with contextlib.suppress(TypeError):
+                    used.add(getattr(C, attr))
+
+        self._colors = set(C.COLOR_CODES) ^ used
+        return self._colors
+
+    def v2_runner_on_intermediate(self, host, task, data):
+        if not (color := self._color_map.get(host)):
+            colors = self._get_colors()
+            color = self._color_map[host] = colors.pop()
+        dump = self._dump_results(data)
+        self._display.display(f"[{host}] {dump}", color=color)

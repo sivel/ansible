@@ -18,6 +18,7 @@ DOCUMENTATION = """
       - set as stdout in configuration
 """
 
+import contextlib
 
 from ansible import constants as C
 from ansible import context
@@ -44,6 +45,8 @@ class CallbackModule(CallbackBase):
         self._last_task_banner = None
         self._last_task_name = None
         self._task_type_cache = {}
+        self._colors = set()
+        self._color_map = {}
         super(CallbackModule, self).__init__()
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
@@ -406,3 +409,26 @@ class CallbackModule(CallbackBase):
     def v2_playbook_on_notify(self, handler, host):
         if self._display.verbosity > 1:
             self._display.display("NOTIFIED HANDLER %s for %s" % (handler.get_name(), host), color=C.COLOR_VERBOSE, screen_only=True)
+
+    def _get_colors(self):
+        if self._colors:
+            return self._colors
+
+        used = {'white', 'black', 'normal'}
+        for attr in dir(C):
+            if attr.startswith('COLOR_'):
+                with contextlib.suppress(TypeError):
+                    used.add(getattr(C, attr))
+
+        self._colors = set(C.COLOR_CODES) ^ used
+        return self._colors
+
+    def v2_runner_on_intermediate(self, host, task, data):
+        if self._display.verbosity < 1:
+            return
+
+        if not (color := self._color_map.get(host)):
+            colors = self._get_colors()
+            color = self._color_map[host] = colors.pop()
+        dump = self._dump_results(data)
+        self._display.display(f"[{host}] {dump}", color=color)

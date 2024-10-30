@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import traceback
+from functools import partial
 
 from ansible import constants as C
 from ansible.cli import scripts
@@ -995,6 +996,20 @@ class TaskExecutor:
             task_uuid=self._task._uuid,
             ansible_playbook_pid=to_text(os.getppid())
         )
+
+        if self._task.stream:
+            if getattr(connection, 'supports_streaming', False):
+                connection.send_intermediate = partial(
+                    self._final_q.send_callback,
+                    'v2_runner_on_intermediate',
+                    self._host.name,
+                    self._task._uuid
+                )
+            else:
+                display.warning(
+                    f'[{self._task}] has streaming enabled, however the {plugin_load_context.resolved_fqcn} '
+                    'connection plugin does not support streaming.'
+                )
 
         if not connection:
             raise AnsibleError("the connection plugin '%s' was not found" % conn_type)

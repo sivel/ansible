@@ -21,7 +21,6 @@ import fcntl
 import getpass
 import os
 import pty
-import selectors
 import shutil
 import subprocess
 import typing as t
@@ -30,7 +29,7 @@ import ansible.constants as C
 from ansible.errors import AnsibleError, AnsibleFileNotFound
 from ansible.module_utils.six import text_type, binary_type
 from ansible.module_utils.common.text.converters import to_bytes, to_native, to_text
-from ansible.plugins.connection import ConnectionBase
+from ansible.plugins.connection import ConnectionBase, parse_intermediate, readselect, stdin_write
 from ansible.utils.display import Display
 from ansible.utils.path import unfrackpath
 
@@ -42,6 +41,7 @@ class Connection(ConnectionBase):
 
     transport = 'local'
     has_pipelining = True
+    supports_streaming = True
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
 
@@ -117,30 +117,18 @@ class Connection(ConnectionBase):
         if self.become and self.become.expect_prompt() and sudoable:
             fcntl.fcntl(p.stdout, fcntl.F_SETFL, fcntl.fcntl(p.stdout, fcntl.F_GETFL) | os.O_NONBLOCK)
             fcntl.fcntl(p.stderr, fcntl.F_SETFL, fcntl.fcntl(p.stderr, fcntl.F_GETFL) | os.O_NONBLOCK)
-            selector = selectors.DefaultSelector()
-            selector.register(p.stdout, selectors.EVENT_READ)
-            selector.register(p.stderr, selectors.EVENT_READ)
 
             become_output = b''
-            try:
-                while not self.become.check_success(become_output) and not self.become.check_password_prompt(become_output):
-                    events = selector.select(self._play_context.timeout)
-                    if not events:
-                        stdout, stderr = p.communicate()
-                        raise AnsibleError('timeout waiting for privilege escalation password prompt:\n' + to_native(become_output))
-
-                    for key, event in events:
-                        if key.fileobj == p.stdout:
-                            chunk = p.stdout.read()
-                        elif key.fileobj == p.stderr:
-                            chunk = p.stderr.read()
-
-                    if not chunk:
-                        stdout, stderr = p.communicate()
-                        raise AnsibleError('privilege output closed while waiting for password prompt:\n' + to_native(become_output))
-                    become_output += chunk
-            finally:
-                selector.close()
+            while not self.become.check_success(become_output) and not self.become.check_password_prompt(become_output):
+                try:
+                    for fileobj, chunk in readselect(p.stdout, p.stderr, timeout=self._play_context.timeout, require_ready=True, read_once=True):
+                        if not chunk:
+                            p.communicate()
+                            raise AnsibleError('privilege output closed while waiting for password prompt:\n' + to_native(become_output))
+                        become_output += chunk
+                except TimeoutError:
+                    p.communicate()
+                    raise AnsibleError('timeout waiting for privilege escalation password prompt:\n' + to_native(become_output))
 
             if not self.become.check_success(become_output):
                 become_pass = self.become.get_option('become_pass', playcontext=self._play_context)
@@ -149,11 +137,20 @@ class Connection(ConnectionBase):
                 else:
                     os.write(master, to_bytes(become_pass, errors='surrogate_or_strict') + b'\n')
 
-            fcntl.fcntl(p.stdout, fcntl.F_SETFL, fcntl.fcntl(p.stdout, fcntl.F_GETFL) & ~os.O_NONBLOCK)
-            fcntl.fcntl(p.stderr, fcntl.F_SETFL, fcntl.fcntl(p.stderr, fcntl.F_GETFL) & ~os.O_NONBLOCK)
-
         display.debug("getting output with communicate()")
-        stdout, stderr = p.communicate(in_data)
+        stdout = b''
+        stderr = b''
+        stdin_write(p.stdin, in_data)
+        for fileobj, chunk in readselect(p.stdout, p.stderr):
+            match fileobj:
+                case p.stdout:
+                    stdout += chunk
+                case p.stderr:
+                    stderr += chunk
+            intermediates, stdout = parse_intermediate(stdout)
+            for intermediate in intermediates:
+                self.send_intermediate(intermediate)
+
         display.debug("done communicating")
 
         # finally, close the other half of the pty, if it was created
