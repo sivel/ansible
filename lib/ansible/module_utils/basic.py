@@ -1453,7 +1453,7 @@ class AnsibleModule(object):
         if final:
             if self.stream:
                 print(f'{RS}{INTERMEDIATE_END}{LF}', end="", flush=True)
-            print(f'{LF if not self.stream else ""}{self.jsonify(kwargs)}')
+            print(f'{LF}{self.jsonify(kwargs)}')
         else:
             print(f'{RS}{self.jsonify(kwargs)}{LF}', end="", flush=True)
 
