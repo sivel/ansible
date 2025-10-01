@@ -7,7 +7,6 @@ from __future__ import annotations
 import copy
 import json
 import sys
-import typing as t
 
 # Used for determining if the system is running a new enough python version
 # and should only restrict on our documented minimum versions
@@ -62,8 +61,6 @@ try:
     HAS_SYSLOG = True
 except ImportError:
     HAS_SYSLOG = False
-
-_UNSET = t.cast(t.Any, object())
 
 try:
     from systemd import journal, daemon as systemd_daemon
@@ -158,6 +155,8 @@ from ansible.module_utils.common.parameters import (
     PASS_BOOLS,
 )
 
+import ansible.module_utils.compat.typing as t
+
 from ansible.module_utils.errors import AnsibleFallbackNotFound, AnsibleValidationErrorMultiple, UnsupportedError
 from ansible.module_utils.common.validation import (
     check_missing_parameters,
@@ -172,6 +171,8 @@ from ansible.module_utils.common.warnings import (
     get_warnings,
     warn,
 )
+
+_UNSET = t.cast(t.Any, object())
 
 # Note: When getting Sequence from collections, it matches with strings. If
 # this matters, make sure to check for strings before checking for sequencetype
@@ -190,20 +191,21 @@ _ANSIBLE_PROFILE: str | None = None
 _PARSED_MODULE_ARGS: dict[str, t.Any] | None = None
 
 
-FILE_COMMON_ARGUMENTS = dict(
-    # These are things we want. About setting metadata (mode, ownership, permissions in general) on
-    # created files (these are used by set_fs_attributes_if_different and included in
-    # load_file_common_arguments)
-    mode=dict(type='raw'),
-    owner=dict(type='str'),
-    group=dict(type='str'),
-    seuser=dict(type='str'),
-    serole=dict(type='str'),
-    selevel=dict(type='str'),
-    setype=dict(type='str'),
-    attributes=dict(type='str', aliases=['attr']),
-    unsafe_writes=dict(type='bool', default=False, fallback=(env_fallback, ['ANSIBLE_UNSAFE_WRITES'])),  # should be available to any module using atomic_move
-)
+# These are things we want. About setting metadata (mode, ownership, permissions in general) on
+# created files (these are used by set_fs_attributes_if_different and included in
+# load_file_common_arguments)
+FILE_COMMON_ARGUMENTS: ArgumentSpec = {
+    'mode': {'type': 'raw'},
+    'owner': {'type': 'str'},
+    'group': {'type': 'str'},
+    'seuser': {'type': 'str'},
+    'serole': {'type': 'str'},
+    'selevel': {'type': 'str'},
+    'setype': {'type': 'str'},
+    'attributes': {'type': 'str', 'aliases': ['attr']},
+    # should be available to any module using atomic_move
+    'unsafe_writes': {'type': 'bool', 'default': False, 'fallback': (env_fallback, ['ANSIBLE_UNSAFE_WRITES'])},
+}
 
 PASSWD_ARG_RE = re.compile(r'^[-]{0,2}pass[-]?(word|wd)?')
 
@@ -366,11 +368,486 @@ def missing_required_lib(library, reason=None, url=None):
     return msg
 
 
+_MutuallyExclusive: t.TypeAlias = list[list[str]]
+_RequiredTogether: t.TypeAlias = list[list[str]]
+_RequiredOneOf: t.TypeAlias = list[list[str]]
+_RequiredIf: t.TypeAlias = list[t.Union[
+    tuple[str, object, tuple[str, ...]],
+    tuple[str, object, tuple[str, ...], bool]
+]]
+_RequiredBy: t.TypeAlias = dict[str, t.Union[str, list[str]]]
+
+
+class _ArgumentConstraints(t.TypedDict, total=False):
+    mutually_exclusive: _MutuallyExclusive
+    required_together: _RequiredTogether
+    required_one_of: _RequiredOneOf
+    required_if: _RequiredIf
+    required_by: _RequiredBy
+
+
+class _DeprecatedAliasesBase(t.TypedDict, total=False):
+    name: str
+    collection_name: str
+
+
+class _DeprecatedAliasesDate(_DeprecatedAliasesBase, total=False):
+    date: str
+
+
+class _DeprecatedAliasesVersion(_DeprecatedAliasesBase, total=False):
+    version: str
+
+
+_DeprecatedAliases: t.TypeAlias = t.Union[_DeprecatedAliasesDate, _DeprecatedAliasesVersion]
+
+
+class _BaseArgumentSpec(t.TypedDict, total=False):
+    context: dict
+    required: bool
+    no_log: bool
+    aliases: t.Iterable[str]
+    apply_defaults: bool
+    deprecated_aliases: list[_DeprecatedAliases]
+
+
+class _BitsArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['bits']
+    choices: list[int]
+    default: int
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _BitsArgumentSpecOptions(_BitsArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _BoolArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['bool']
+    choices: list[bool]
+    default: bool
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], bool]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], bool], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], bool], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _BoolArgumentSpecOptions(_BoolArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _BytesArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['bytes']
+    choices: list[int]
+    default: int
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _BytesArgumentSpecOptions(_BytesArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _CallableArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Callable[[object], object]
+    choices: list[object]
+    default: object
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _CallableArgumentSpecOptions(_CallableArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _DictArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['dict']
+    choices: list[dict]
+    default: dict
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], dict]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], dict], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], dict], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _DictArgumentSpecOptions(_DictArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _FloatArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['float']
+    choices: list[float]
+    default: float
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], float]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], float], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], float], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _FloatArgumentSpecOptions(_FloatArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _IntArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['int']
+    choices: list[int]
+    default: int
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], int], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _IntArgumentSpecOptions(_IntArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _JsonArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['json']
+    choices: list[object]
+    default: str
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _JsonArgumentSpecOptions(_JsonArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _JsonArgArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['jsonarg']
+    choices: list[object]
+    default: str
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _JsonArgArgumentSpecOptions(_JsonArgArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _PathArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['path']
+    choices: list[str]
+    default: str
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _PathArgumentSpecOptions(_PathArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _RawArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['raw']
+    choices: list[object]
+    default: object
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], object], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _RawArgumentSpecOptions(_RawArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _StrArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['str']
+    choices: list[str]
+    default: str
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], str], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _StrArgumentSpecOptions(_StrArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfBitsArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['bits']
+    choices: list[int]
+    default: list[int]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfBitsArgumentSpecOptions(_ListOfBitsArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfBoolArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['bool']
+    choices: list[bool]
+    default: list[bool]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[bool]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[bool]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[bool]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfBoolArgumentSpecOptions(_ListOfBoolArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfBytesArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['bytes']
+    choices: list[int]
+    default: list[int]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfBytesArgumentSpecOptions(_ListOfBytesArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfCallableArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Callable[[object], object]
+    choices: list[object]
+    default: list[object]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfCallableArgumentSpecOptions(_ListOfCallableArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfDictArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['dict']
+    choices: list[dict]
+    default: list[dict]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[dict]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[dict]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[dict]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfDictArgumentSpecOptions(_ListOfDictArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfFloatArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['float']
+    choices: list[float]
+    default: list[float]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[float]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[float]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[float]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfFloatArgumentSpecOptions(_ListOfFloatArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfIntArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['int']
+    choices: list[int]
+    default: list[int]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[int]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfIntArgumentSpecOptions(_ListOfIntArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfJsonArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['json']
+    choices: list[object]
+    default: list[str]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfJsonArgumentSpecOptions(_ListOfJsonArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfJsonArgArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['jsonarg']
+    choices: list[object]
+    default: list[str]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfJsonArgArgumentSpecOptions(_ListOfJsonArgArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfPathArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['path']
+    choices: list[str]
+    default: list[str]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfPathArgumentSpecOptions(_ListOfPathArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfRawArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['raw']
+    choices: list[object]
+    default: list[object]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[object]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfRawArgumentSpecOptions(_ListOfRawArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+class _ListOfStrArgumentSpec(_BaseArgumentSpec, total=False):
+    type: t.Literal['list']
+    elements: t.Literal['str']
+    choices: list[str]
+    default: list[str]
+    fallback: (
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]]] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable] |
+        tuple[t.Callable[[t.Iterable, dict[str, object]], list[str]], t.Iterable, dict[str, object]]
+    )
+    options: dict[str, _ArgumentSpecTypeOptions]
+
+
+class _ListOfStrArgumentSpecOptions(_ListOfStrArgumentSpec, _ArgumentConstraints, total=False):
+    ...
+
+
+_ArgumentSpecTypes: t.TypeAlias = t.Union[
+  _BitsArgumentSpec, _BoolArgumentSpec, _BytesArgumentSpec,
+  _CallableArgumentSpec, _DictArgumentSpec, _FloatArgumentSpec,
+  _IntArgumentSpec, _JsonArgumentSpec, _JsonArgArgumentSpec,
+  _PathArgumentSpec, _RawArgumentSpec, _StrArgumentSpec,
+  _ListOfBitsArgumentSpec, _ListOfBoolArgumentSpec, _ListOfBytesArgumentSpec,
+  _ListOfCallableArgumentSpec, _ListOfDictArgumentSpec, _ListOfFloatArgumentSpec,
+  _ListOfIntArgumentSpec, _ListOfJsonArgumentSpec, _ListOfJsonArgArgumentSpec,
+  _ListOfPathArgumentSpec, _ListOfRawArgumentSpec, _ListOfStrArgumentSpec,
+]
+
+
+_ArgumentSpecTypeOptions: t.TypeAlias = t.Union[
+    _BitsArgumentSpecOptions, _BoolArgumentSpecOptions, _BytesArgumentSpecOptions,
+    _CallableArgumentSpecOptions, _DictArgumentSpecOptions, _FloatArgumentSpecOptions,
+    _IntArgumentSpecOptions, _JsonArgumentSpecOptions, _JsonArgArgumentSpecOptions,
+    _PathArgumentSpecOptions, _RawArgumentSpecOptions, _StrArgumentSpecOptions,
+    _ListOfBitsArgumentSpecOptions, _ListOfBoolArgumentSpecOptions, _ListOfBytesArgumentSpecOptions,
+    _ListOfCallableArgumentSpecOptions, _ListOfDictArgumentSpecOptions, _ListOfFloatArgumentSpecOptions,
+    _ListOfIntArgumentSpecOptions, _ListOfJsonArgumentSpecOptions, _ListOfJsonArgArgumentSpecOptions,
+    _ListOfPathArgumentSpecOptions, _ListOfRawArgumentSpecOptions, _ListOfStrArgumentSpecOptions,
+]
+
+
+ArgumentSpec: t.TypeAlias = dict[str, _ArgumentSpecTypes]
+
+
 class AnsibleModule(object):
-    def __init__(self, argument_spec, bypass_checks=False, no_log=False,
-                 mutually_exclusive=None, required_together=None,
-                 required_one_of=None, add_file_common_args=False,
-                 supports_check_mode=False, required_if=None, required_by=None):
+    def __init__(
+        self,
+        argument_spec: ArgumentSpec,
+        bypass_checks: bool = False,
+        no_log: bool = False,
+        mutually_exclusive: _MutuallyExclusive | None = None,
+        required_together: _RequiredTogether | None = None,
+        required_one_of: _RequiredOneOf | None = None,
+        add_file_common_args: bool = False,
+        supports_check_mode: bool = False,
+        required_if: _RequiredIf | None = None,
+        required_by: _RequiredBy | None = None,
+    ) -> None:
 
         """
         Common code for quickly building an ansible module in Python
@@ -381,7 +858,7 @@ class AnsibleModule(object):
         """
 
         self._name = os.path.basename(__file__)  # initialize name until we can parse from options
-        self.argument_spec = argument_spec
+        self.argument_spec = dict(argument_spec)
         self.supports_check_mode = supports_check_mode
         self.check_mode = False
         self.bypass_checks = bypass_checks
@@ -392,7 +869,7 @@ class AnsibleModule(object):
         self.required_one_of = required_one_of
         self.required_if = required_if
         self.required_by = required_by
-        self.cleanup_files = []
+        self.cleanup_files: list[str] = []
         self._debug = False
         self._diff = False
         self._socket_path = None
@@ -401,12 +878,10 @@ class AnsibleModule(object):
         self._verbosity = 0
         # May be used to set modifications to the environment for any
         # run_command invocation
-        self.run_command_environ_update = {}
-        self._clean = {}
+        self.run_command_environ_update: dict[str, str] = {}
+        self._clean: str = ''
 
         self.aliases = {}
-        self._legal_inputs = []
-        self._options_context = list()
         self._tmpdir = None
 
         if add_file_common_args:
@@ -1948,7 +2423,7 @@ class AnsibleModule(object):
             to turn decoding to text off.
         """
         # used by clean args later on
-        self._clean = None
+        self._clean = ''
 
         if not isinstance(args, (list, bytes, str)):
             msg = "Argument 'args' to run_command must be list or string"

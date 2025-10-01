@@ -68,9 +68,9 @@ from ansible.module_utils.basic import AnsibleModule
 
 def main():
     module = AnsibleModule(
-        argument_spec=dict(
-            data=dict(type='str', default='pong'),
-        ),
+        argument_spec={
+            'data': {'type': 'str', 'default': 'pong'},
+        },
         supports_check_mode=True
     )
 
